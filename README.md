@@ -1,4 +1,4 @@
-# trans-ann
+# transitive-anns
 
 ## Overview
 
@@ -6,9 +6,9 @@ This package is a small compiler plugin that propagates, and reifies, annotation
 transitively. To get started, try attaching some annotations to some values:
 
 ```haskell
-{-# OPTIONS_GHC -fplugin=TransAnn.Plugin #-}
+{-# OPTIONS_GHC -fplugin=TransitiveAnns.Plugin #-}
 
-import TransAnn.Annotations
+import TransitiveAnns.Types
 
 {-# ANN test3 (Annotation Remote "hello from" "test3") #-}
 test3 :: Int

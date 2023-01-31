@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveDataTypeable    #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module TransAnn.Annotations where
+module TransitiveAnns.Types where
 
 import Data.Data (Typeable, Data)
 

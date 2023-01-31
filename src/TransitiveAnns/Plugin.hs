@@ -4,9 +4,8 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE BangPatterns #-}
 
-module TransAnn.Plugin where
+module TransitiveAnns.Plugin where
 
-import qualified TransAnn.Annotations as TA
 import           Data.Data hiding (TyCon)
 import           Data.Foldable (fold)
 import           Data.Functor ((<&>))
@@ -16,7 +15,8 @@ import qualified Data.Map as M
 import           Data.Maybe (fromMaybe, listToMaybe, mapMaybe)
 import           Data.Set (Set)
 import qualified Data.Set as S
-import TcRnMonad
+import           TcRnMonad
+import qualified TransitiveAnns.Types as TA
 
 #if __GLASGOW_HASKELL__ >= 900
 import GHC.Plugins hiding ((<>), empty)
@@ -58,7 +58,7 @@ buildNewAnnotations annotated = do
   as <&> \a -> Annotation (NamedTarget $ getName b) $ toSerialized serializeWithData a
 
 
-data TransAnnData = TransAnnData
+data TransitiveAnnsData = TransitiveAnnsData
   { tad_knownanns :: Class
   , tad_ann_tc :: TyCon
   , tad_loc_tc :: TyCon
@@ -68,19 +68,19 @@ data TransAnnData = TransAnnData
 ------------------------------------------------------------------------------
 -- | Lookup the classes from 'Data.Constraint.Emerge' and build an
 -- 'EmergeData'.
-lookupTransAnnsData :: TcPluginM TransAnnData
-lookupTransAnnsData = do
+lookupTransitiveAnnssData :: TcPluginM TransitiveAnnsData
+lookupTransitiveAnnssData = do
     Found _ md  <- findImportedModule modul Nothing
     emergeTcNm  <- lookupOrig md $ mkTcOcc "KnownAnnotations"
     ann  <- lookupOrig md $ mkTcOcc "Annotation"
     loc  <- lookupOrig md $ mkTcOcc "Location"
 
-    TransAnnData
+    TransitiveAnnsData
         <$> tcLookupClass emergeTcNm
         <*> tcLookupTyCon ann
         <*> tcLookupTyCon loc
   where
-    modul  = mkModuleName "TransAnn.Annotations"
+    modul  = mkModuleName "TransitiveAnns.Types"
 
 
 transann :: ModGuts -> CoreM ModGuts
@@ -105,9 +105,9 @@ location tcbs = do
 
 plugin :: Plugin
 plugin = defaultPlugin
-  { installCoreToDos = const $ pure . (CoreDoPluginPass "TransAnn" transann :)
+  { installCoreToDos = const $ pure . (CoreDoPluginPass "TransitiveAnns" transann :)
   , tcPlugin = const $ Just $ TcPlugin
-      { tcPluginInit = lookupTransAnnsData
+      { tcPluginInit = lookupTransitiveAnnssData
       , tcPluginSolve = solveKnownAnns
 
       , tcPluginStop = const $ pure ()
@@ -126,7 +126,7 @@ findEmergePred c ct = do
     _ -> Nothing
 
 
-solveKnownAnns :: TransAnnData -> TcPluginSolver
+solveKnownAnns :: TransitiveAnnsData -> TcPluginSolver
 solveKnownAnns tad _ _ ws
   | [known] <- mapMaybe (findEmergePred (tad_knownanns tad)) ws
   = do
@@ -157,12 +157,12 @@ getDec bs n = listToMaybe $ do
 mkString :: String -> Expr Var
 mkString str = mkListExpr charTy $ fmap mkCharExpr str
 
-buildCore :: TransAnnData -> [TA.Annotation] -> Expr Var
+buildCore :: TransitiveAnnsData -> [TA.Annotation] -> Expr Var
 buildCore tad anns = mkListExpr (mkTyConTy $ tad_ann_tc tad) $ fmap (buildAnn tad) anns
 
-buildAnn :: TransAnnData -> TA.Annotation -> CoreExpr
+buildAnn :: TransitiveAnnsData -> TA.Annotation -> CoreExpr
 buildAnn tad (TA.Annotation loc s str) = mkCoreConApps (head $ tyConDataCons $ tad_ann_tc tad) $ [mkLoc tad loc, mkString s, mkString str]
 
-mkLoc :: TransAnnData -> TA.Location -> CoreExpr
+mkLoc :: TransitiveAnnsData -> TA.Location -> CoreExpr
 mkLoc tad loc = mkCoreConApps (tyConDataCons (tad_loc_tc tad) !! fromEnum loc) []
 

@@ -1,9 +1,9 @@
-{-# OPTIONS_GHC -fplugin=TransAnn.Plugin #-}
+{-# OPTIONS_GHC -fplugin=TransitiveAnns.Plugin #-}
 
 module Test where
 
+import TransitiveAnns.Types
 import Test2
-import TransAnn.Annotations
 
 test :: ([Annotation], Int)
 test = withAnnotations test2

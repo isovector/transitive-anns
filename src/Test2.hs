@@ -1,8 +1,8 @@
-{-# OPTIONS_GHC -fplugin=TransAnn.Plugin #-}
+{-# OPTIONS_GHC -fplugin=TransitiveAnns.Plugin #-}
 
 module Test2 where
 
-import TransAnn.Annotations
+import TransitiveAnns.Types
 import Test3
 
 {-# ANN test2 (Annotation Remote "hello from" "test2") #-}
