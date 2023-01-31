@@ -61,6 +61,7 @@ buildNewAnnotations annotated = do
 data TransAnnData = TransAnnData
   { tad_knownanns :: Class
   , tad_ann_tc :: TyCon
+  , tad_loc_tc :: TyCon
   }
 
 
@@ -72,10 +73,12 @@ lookupTransAnnsData = do
     Found _ md  <- findImportedModule modul Nothing
     emergeTcNm  <- lookupOrig md $ mkTcOcc "KnownAnnotations"
     ann  <- lookupOrig md $ mkTcOcc "Annotation"
+    loc  <- lookupOrig md $ mkTcOcc "Location"
 
     TransAnnData
         <$> tcLookupClass emergeTcNm
         <*> tcLookupTyCon ann
+        <*> tcLookupTyCon loc
   where
     modul  = mkModuleName "TransAnn.Annotations"
 
@@ -158,5 +161,8 @@ buildCore :: TransAnnData -> [TA.Annotation] -> Expr Var
 buildCore tad anns = mkListExpr (mkTyConTy $ tad_ann_tc tad) $ fmap (buildAnn tad) anns
 
 buildAnn :: TransAnnData -> TA.Annotation -> CoreExpr
-buildAnn tad (TA.Annotation s str) = mkCoreConApps (head $ tyConDataCons $ tad_ann_tc tad) $ [mkString s, mkString str]
+buildAnn tad (TA.Annotation loc s str) = mkCoreConApps (head $ tyConDataCons $ tad_ann_tc tad) $ [mkLoc tad loc, mkString s, mkString str]
+
+mkLoc :: TransAnnData -> TA.Location -> CoreExpr
+mkLoc tad loc = mkCoreConApps (tyConDataCons (tad_loc_tc tad) !! fromEnum loc) []
 

@@ -4,7 +4,7 @@ module Test2 where
 
 import TransAnn.Annotations
 
-{-# ANN hello (Annotation "hello" "world") #-}
+{-# ANN hello (Annotation Remote "hello" "world") #-}
 hello :: Int
 hello = 5
 

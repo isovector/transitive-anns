@@ -5,9 +5,13 @@ module TransAnn.Annotations where
 
 import Data.Data (Typeable, Data)
 
+data Location = Local | Remote
+  deriving (Eq, Ord, Show, Enum, Bounded, Typeable, Data)
+
 data Annotation = Annotation
-  { api :: String
-  , call :: String
+  { ann_location :: Location
+  , ann_api      :: String
+  , ann_method   :: String
   }
   deriving (Eq, Ord, Show, Typeable, Data)
 
