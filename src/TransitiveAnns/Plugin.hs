@@ -1,11 +1,13 @@
-{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE BangPatterns #-}
 
 module TransitiveAnns.Plugin where
 
+import           Bag (bagToList)
+import           Class (classTyCon)
+import           Constraint
 import           Data.Data hiding (TyCon)
 import           Data.Foldable (fold)
 import           Data.Functor ((<&>))
@@ -15,22 +17,13 @@ import qualified Data.Map as M
 import           Data.Maybe (fromMaybe, listToMaybe, mapMaybe)
 import           Data.Set (Set)
 import qualified Data.Set as S
+import           GHC (GhcTc, Class)
+import           GHC.Hs.Binds
+import           GhcPlugins hiding (TcPlugin, (<>), empty)
+import           TcEvidence (EvTerm(EvExpr))
+import           TcPluginM (findImportedModule, lookupOrig, tcLookupClass, tcLookupTyCon)
 import           TcRnMonad
 import qualified TransitiveAnns.Types as TA
-
-#if __GLASGOW_HASKELL__ >= 900
-import GHC.Plugins hiding ((<>), empty)
-#else
-import GhcPlugins hiding (TcPlugin, (<>), empty)
-#endif
-
-import Constraint
-import GHC (GhcTc, Class)
-import Bag (bagToList)
-import GHC.Hs.Binds
-import TcPluginM (findImportedModule, lookupOrig, tcLookupClass, tcLookupTyCon)
-import Class (classTyCon)
-import TcEvidence (EvTerm(EvExpr))
 
 ------------------------------------------------------------------------------
 

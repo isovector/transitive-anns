@@ -2,8 +2,9 @@
 
 ## Overview
 
-This package is a small compiler plugin that propagates, and reifies, annotations
-transitively. To get started, try attaching some annotations to some values:
+This package is a small compiler plugin that transitively propagates, and
+reifies, annotations. To get started, try attaching some annotations to some
+values:
 
 ```haskell
 {-# OPTIONS_GHC -fplugin=TransitiveAnns.Plugin #-}
