@@ -7,13 +7,13 @@
 module Plugin where
 
 import           Ann (Ann (Ann))
-import           Data.Data
+import           Data.Data hiding (TyCon)
 import           Data.Foldable (fold)
 import           Data.Functor ((<&>))
 import           Data.Generics (everything, mkQ)
 import           Data.Map (Map)
 import qualified Data.Map as M
-import           Data.Maybe (fromMaybe, listToMaybe)
+import           Data.Maybe (fromMaybe, listToMaybe, mapMaybe)
 import           Data.Set (Set)
 import qualified Data.Set as S
 import TcRnMonad
@@ -25,11 +25,14 @@ import GhcPlugins hiding (TcPlugin, (<>), empty)
 #endif
 
 import Constraint
-import GHC (LHsBinds, GhcTc, HsBindLR)
+import GHC (LHsBinds, GhcTc, HsBindLR, Class)
 import Bag (bagToList)
 import GHC.Hs.Binds
 import Control.Applicative (empty)
 import GHC.Hs.Dump (showAstData, BlankSrcSpan (BlankSrcSpan))
+import TcPluginM (findImportedModule, lookupOrig, tcLookupClass, tcLookupTyCon, tcLookupDataCon)
+import Class (classTyCon)
+import TcEvidence (EvTerm(EvExpr))
 
 ------------------------------------------------------------------------------
 
@@ -62,6 +65,29 @@ buildNewAnnotations annotated = do
   as <&> \a -> Annotation (NamedTarget $ getName b) $ toSerialized serializeWithData a
 
 
+data TransAnnData = TransAnnData
+  { tad_knownanns :: Class
+  , tad_ann_tc :: TyCon
+  }
+
+
+------------------------------------------------------------------------------
+-- | Lookup the classes from 'Data.Constraint.Emerge' and build an
+-- 'EmergeData'.
+lookupTransAnnsData :: TcPluginM TransAnnData
+lookupTransAnnsData = do
+    Found _ md  <- findImportedModule emergeModule Nothing
+    Found _ md2  <- findImportedModule annModule Nothing
+    emergeTcNm  <- lookupOrig md $ mkTcOcc "KnownAnns"
+    ann  <- lookupOrig md2 $ mkTcOcc "Ann"
+
+    TransAnnData
+        <$> tcLookupClass emergeTcNm
+        <*> tcLookupTyCon ann
+  where
+    emergeModule  = mkModuleName "KnownAnns"
+    annModule  = mkModuleName "Ann"
+
 
 transann :: ModGuts -> CoreM ModGuts
 transann mg = do
@@ -73,7 +99,6 @@ transann mg = do
       anns = lookupAttachedAnns annenv all_ids
       annotated = withAnnotations anns contents
       new_anns = buildNewAnnotations annotated
-  pprTraceM "annotated" $ ppr annotated
   pure $ mg { mg_anns = new_anns ++ mganns }
 
 location :: TcBinderStack -> Maybe Name
@@ -88,26 +113,43 @@ plugin :: Plugin
 plugin = defaultPlugin
   { installCoreToDos = const $ pure . (CoreDoPluginPass "TransAnn" transann :)
   , tcPlugin = const $ Just $ TcPlugin
-      { tcPluginInit = pure ()
-      , tcPluginSolve = const $ \gs ds ws -> do
-          env <- unsafeTcPluginTcM $ fmap tcl_bndrs getLclEnv
-          case location env of
-            Just n -> do
-              hsc <- unsafeTcPluginTcM getTopEnv
-              decs <- unsafeTcPluginTcM $ tcg_binds <$> getGblEnv
-              anns <- unsafeTcPluginTcM $ tcg_anns <$> getGblEnv
-              annenv' <- unsafeTcPluginTcM $ liftIO $ prepareAnnotations hsc Nothing
-              let annenv = extendAnnEnvList annenv' anns
-              let dec = getVars $ getDec decs n
-                  z = foldMap (\v -> findAnns (deserializeWithData @AnnToTrack) annenv $ NamedTarget $ getName v) dec
-              pprTraceM "decs" $ ppr z
-            Nothing -> pure ()
-          pprTraceM "ws" $ ppr (location env, gs, ws, ds)
-          pure $ TcPluginOk [] []
-      , tcPluginStop = pure
+      { tcPluginInit = lookupTransAnnsData
+      , tcPluginSolve = solveKnownAnns
+
+      , tcPluginStop = const $ pure ()
       }
   , pluginRecompile  = purePlugin
   }
+
+findEmergePred :: Class -> Ct -> Maybe Ct
+findEmergePred c ct = do
+  let pred = ctev_pred $ cc_ev ct
+  case splitTyConApp_maybe pred of
+    Just (x, _) ->
+      case x == classTyCon c of
+        True -> Just (ct)
+        False -> Nothing
+    _ -> Nothing
+
+
+solveKnownAnns :: TransAnnData -> TcPluginSolver
+solveKnownAnns tad _ _ ws
+  | [known] <- mapMaybe (findEmergePred (tad_knownanns tad)) ws
+  = do
+    env <- unsafeTcPluginTcM $ fmap tcl_bndrs getLclEnv
+    case location env of
+      Nothing -> pure $ TcPluginOk [] []
+      Just n -> do
+        hsc <- unsafeTcPluginTcM getTopEnv
+        decs <- unsafeTcPluginTcM $ tcg_binds <$> getGblEnv
+        anns <- unsafeTcPluginTcM $ tcg_anns <$> getGblEnv
+        annenv' <- unsafeTcPluginTcM $ liftIO $ prepareAnnotations hsc Nothing
+        let annenv = extendAnnEnvList annenv' anns
+        let dec = getVars $ getDec decs n
+            z = foldMap (\v -> findAnns (deserializeWithData @AnnToTrack) annenv $ NamedTarget $ getName v) dec
+        pprTraceM "decs" $ ppr z
+        pure $ TcPluginOk [(EvExpr $ buildCore tad z, known)] []
+  | otherwise = pure $ TcPluginOk [] []
 
 getDec :: LHsBinds GhcTc -> Name -> Maybe (HsBindLR GhcTc GhcTc)
 getDec bs n = listToMaybe $ do
@@ -118,4 +160,13 @@ getDec bs n = listToMaybe $ do
       | otherwise -> []
     (_ :: HsBindLR GhcTc GhcTc) -> []
     ) b
+
+mkString :: String -> Expr Var
+mkString str = mkListExpr charTy $ fmap mkCharExpr str
+
+buildCore :: TransAnnData -> [Ann] -> Expr Var
+buildCore tad anns = mkListExpr (mkTyConTy $ tad_ann_tc tad) $ fmap (buildAnn tad) anns
+
+buildAnn :: TransAnnData -> Ann -> CoreExpr
+buildAnn tad (Ann s str) = mkCoreConApps (head $ tyConDataCons $ tad_ann_tc tad) $ [mkString s, mkString str]
 
