@@ -1,0 +1,47 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.34.4.
+--
+-- see: https://github.com/sol/hpack
+
+name:           trans-ann
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/isovector/trans-ann#readme>
+homepage:       https://github.com/isovector/trans-ann#readme
+bug-reports:    https://github.com/isovector/trans-ann/issues
+author:         Sandy Maguire
+maintainer:     sandy@sandymaguire.me
+copyright:      Sandy Maguire
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    CHANGELOG.md
+
+source-repository head
+  type: git
+  location: https://github.com/isovector/trans-ann
+
+library
+  exposed-modules:
+      Ann
+      KnownAnns
+      Lib
+      MagicTyFam
+      Plugin
+      Test
+      Test2
+      Test3
+  other-modules:
+      Paths_trans_ann
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints
+  build-depends:
+      base >=4.7 && <5
+    , containers
+    , ghc
+    , ghc-tcplugins-extra
+    , syb
+  default-language: Haskell2010
