@@ -25,15 +25,11 @@ source-repository head
 
 library
   exposed-modules:
-      Ann
-      KnownAnns
       Lib
-      MagicTyFam
-      Plugin
       Test
       Test2
-      Test3
       TransAnn.Annotations
+      TransAnn.Plugin
   other-modules:
       Paths_trans_ann
   hs-source-dirs:

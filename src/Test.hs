@@ -1,10 +1,10 @@
-{-# OPTIONS_GHC -fplugin=Plugin #-}
+{-# OPTIONS_GHC -fplugin=TransAnn.Plugin #-}
 
 module Test where
 
 import Test2
 import TransAnn.Annotations
 
-hello2 :: ([Annotation], Int)
-hello2 = withAnnotations hello
+test :: ([Annotation], Int)
+test = withAnnotations test2
 

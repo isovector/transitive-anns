@@ -1,10 +1,10 @@
-{-# LANGUAGE CPP              #-}
-{-# LANGUAGE TypeApplications #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE BangPatterns #-}
 
-module Plugin where
+module TransAnn.Plugin where
 
 import qualified TransAnn.Annotations as TA
 import           Data.Data hiding (TyCon)
@@ -121,7 +121,7 @@ findEmergePred c ct = do
   case splitTyConApp_maybe p of
     Just (x, _) ->
       case x == classTyCon c of
-        True -> Just (ct)
+        True -> Just ct
         False -> Nothing
     _ -> Nothing
 
