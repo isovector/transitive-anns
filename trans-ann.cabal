@@ -33,6 +33,7 @@ library
       Test
       Test2
       Test3
+      TransAnn.Annotations
   other-modules:
       Paths_trans_ann
   hs-source-dirs:

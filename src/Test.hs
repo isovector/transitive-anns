@@ -1,18 +1,10 @@
-{-# LANGUAGE MultiParamTypeClasses   #-}
-{-# LANGUAGE TypeFamilies            #-}
-{-# LANGUAGE UndecidableInstances    #-}
-{-# LANGUAGE UndecidableSuperClasses #-}
-{-# OPTIONS_GHC -fplugin=Plugin      #-}
+{-# OPTIONS_GHC -fplugin=Plugin #-}
 
 module Test where
 
 import Test2
-import Data.Kind
-import KnownAnns
-import Ann
+import TransAnn.Annotations
 
-{-# ANN hello2 (Ann "hello" "b") #-}
-{-# ANN hello2 (Ann "another" "b") #-}
-hello2 :: [Ann]
-hello2 = anns
+hello2 :: ([Annotation], Int)
+hello2 = withAnnotations hello
 

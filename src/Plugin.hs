@@ -6,7 +6,7 @@
 
 module Plugin where
 
-import           Ann (Ann (Ann))
+import qualified TransAnn.Annotations as TA
 import           Data.Data hiding (TyCon)
 import           Data.Foldable (fold)
 import           Data.Functor ((<&>))
@@ -25,29 +25,22 @@ import GhcPlugins hiding (TcPlugin, (<>), empty)
 #endif
 
 import Constraint
-import GHC (LHsBinds, GhcTc, HsBindLR, Class)
+import GHC (GhcTc, Class)
 import Bag (bagToList)
 import GHC.Hs.Binds
-import Control.Applicative (empty)
-import GHC.Hs.Dump (showAstData, BlankSrcSpan (BlankSrcSpan))
-import TcPluginM (findImportedModule, lookupOrig, tcLookupClass, tcLookupTyCon, tcLookupDataCon)
+import TcPluginM (findImportedModule, lookupOrig, tcLookupClass, tcLookupTyCon)
 import Class (classTyCon)
 import TcEvidence (EvTerm(EvExpr))
 
 ------------------------------------------------------------------------------
 
-instance Outputable Ann where
-  ppr (Ann api call) = ppr (api, call)
-
-type AnnToTrack = Ann
-
 forBinds :: Ord b => (Expr b -> r) -> Bind b -> Map b r
 forBinds f (NonRec b ex) = M.singleton b $ f ex
 forBinds f (Rec x0) = foldMap (\(b, e) -> M.singleton b $ f e) x0
 
-lookupAttachedAnns :: AnnEnv -> Set CoreBndr -> Map CoreBndr [AnnToTrack]
+lookupAttachedAnns :: AnnEnv -> Set CoreBndr -> Map CoreBndr [TA.Annotation]
 lookupAttachedAnns annenv = foldMap $ \b ->
-  M.singleton b $ findAnns (deserializeWithData @AnnToTrack) annenv $ NamedTarget $ getName b
+  M.singleton b $ findAnns (deserializeWithData @TA.Annotation) annenv $ NamedTarget $ getName b
 
 referencedVars :: [Bind CoreBndr] -> Map CoreBndr (Set CoreBndr)
 referencedVars bs = flip foldMap bs $ forBinds getVars
@@ -59,7 +52,7 @@ getVars =
 withAnnotations :: Ord b => Map b [c] -> Map a (Set b) -> Map a [c]
 withAnnotations anns cs = M.map (foldMap (fromMaybe [] . flip M.lookup anns)) cs
 
-buildNewAnnotations :: Map CoreBndr [AnnToTrack] -> [Annotation]
+buildNewAnnotations :: Map CoreBndr [TA.Annotation] -> [Annotation]
 buildNewAnnotations annotated = do
   (b, as) <- M.toList annotated
   as <&> \a -> Annotation (NamedTarget $ getName b) $ toSerialized serializeWithData a
@@ -76,17 +69,15 @@ data TransAnnData = TransAnnData
 -- 'EmergeData'.
 lookupTransAnnsData :: TcPluginM TransAnnData
 lookupTransAnnsData = do
-    Found _ md  <- findImportedModule emergeModule Nothing
-    Found _ md2  <- findImportedModule annModule Nothing
-    emergeTcNm  <- lookupOrig md $ mkTcOcc "KnownAnns"
-    ann  <- lookupOrig md2 $ mkTcOcc "Ann"
+    Found _ md  <- findImportedModule modul Nothing
+    emergeTcNm  <- lookupOrig md $ mkTcOcc "KnownAnnotations"
+    ann  <- lookupOrig md $ mkTcOcc "Annotation"
 
     TransAnnData
         <$> tcLookupClass emergeTcNm
         <*> tcLookupTyCon ann
   where
-    emergeModule  = mkModuleName "KnownAnns"
-    annModule  = mkModuleName "Ann"
+    modul  = mkModuleName "TransAnn.Annotations"
 
 
 transann :: ModGuts -> CoreM ModGuts
@@ -123,8 +114,8 @@ plugin = defaultPlugin
 
 findEmergePred :: Class -> Ct -> Maybe Ct
 findEmergePred c ct = do
-  let pred = ctev_pred $ cc_ev ct
-  case splitTyConApp_maybe pred of
+  let p = ctev_pred $ cc_ev ct
+  case splitTyConApp_maybe p of
     Just (x, _) ->
       case x == classTyCon c of
         True -> Just (ct)
@@ -146,8 +137,7 @@ solveKnownAnns tad _ _ ws
         annenv' <- unsafeTcPluginTcM $ liftIO $ prepareAnnotations hsc Nothing
         let annenv = extendAnnEnvList annenv' anns
         let dec = getVars $ getDec decs n
-            z = foldMap (\v -> findAnns (deserializeWithData @AnnToTrack) annenv $ NamedTarget $ getName v) dec
-        pprTraceM "decs" $ ppr z
+            z = foldMap (\v -> findAnns (deserializeWithData @TA.Annotation) annenv $ NamedTarget $ getName v) dec
         pure $ TcPluginOk [(EvExpr $ buildCore tad z, known)] []
   | otherwise = pure $ TcPluginOk [] []
 
@@ -164,9 +154,9 @@ getDec bs n = listToMaybe $ do
 mkString :: String -> Expr Var
 mkString str = mkListExpr charTy $ fmap mkCharExpr str
 
-buildCore :: TransAnnData -> [Ann] -> Expr Var
+buildCore :: TransAnnData -> [TA.Annotation] -> Expr Var
 buildCore tad anns = mkListExpr (mkTyConTy $ tad_ann_tc tad) $ fmap (buildAnn tad) anns
 
-buildAnn :: TransAnnData -> Ann -> CoreExpr
-buildAnn tad (Ann s str) = mkCoreConApps (head $ tyConDataCons $ tad_ann_tc tad) $ [mkString s, mkString str]
+buildAnn :: TransAnnData -> TA.Annotation -> CoreExpr
+buildAnn tad (TA.Annotation s str) = mkCoreConApps (head $ tyConDataCons $ tad_ann_tc tad) $ [mkString s, mkString str]
 

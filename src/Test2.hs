@@ -2,9 +2,9 @@
 
 module Test2 where
 
-import Ann
+import TransAnn.Annotations
 
-{-# ANN hello (Ann "hello" "world") #-}
+{-# ANN hello (Annotation "hello" "world") #-}
 hello :: Int
 hello = 5
 
