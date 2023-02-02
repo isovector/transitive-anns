@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE MagicHash           #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 
@@ -23,7 +24,9 @@ import           GhcPlugins hiding (TcPlugin, (<>), empty)
 import           TcEvidence (EvTerm(EvExpr))
 import           TcPluginM (findImportedModule, lookupOrig, tcLookupClass, tcLookupTyCon)
 import           TcRnMonad
-import qualified TransitiveAnns.Types as TA
+import           TransitiveAnns.Types (TrackAnn (..))
+import TysPrim (word64PrimTy, word64PrimTyCon)
+import Data.Word (Word64)
 
 ------------------------------------------------------------------------------
 
@@ -31,9 +34,9 @@ forBinds :: Ord b => (Expr b -> r) -> Bind b -> Map b r
 forBinds f (NonRec b ex) = M.singleton b $ f ex
 forBinds f (Rec x0) = foldMap (\(b, e) -> M.singleton b $ f e) x0
 
-lookupAttachedAnns :: AnnEnv -> Set CoreBndr -> Map CoreBndr [TA.Annotation]
+lookupAttachedAnns :: AnnEnv -> Set CoreBndr -> Map CoreBndr [TrackAnn]
 lookupAttachedAnns annenv = foldMap $ \b ->
-  M.singleton b $ findAnns (deserializeWithData @TA.Annotation) annenv $ NamedTarget $ getName b
+  M.singleton b $ findAnns (deserializeWithData @TrackAnn) annenv $ NamedTarget $ getName b
 
 referencedVars :: [Bind CoreBndr] -> Map CoreBndr (Set CoreBndr)
 referencedVars bs = flip foldMap bs $ forBinds getVars
@@ -45,7 +48,7 @@ getVars =
 withAnnotations :: Ord b => Map b [c] -> Map a (Set b) -> Map a [c]
 withAnnotations anns cs = M.map (foldMap (fromMaybe [] . flip M.lookup anns)) cs
 
-buildNewAnnotations :: Map CoreBndr [TA.Annotation] -> [Annotation]
+buildNewAnnotations :: Map CoreBndr [TrackAnn] -> [Annotation]
 buildNewAnnotations annotated = do
   (b, as) <- M.toList annotated
   as <&> \a -> Annotation (NamedTarget $ getName b) $ toSerialized serializeWithData a
@@ -54,7 +57,7 @@ buildNewAnnotations annotated = do
 data TransitiveAnnsData = TransitiveAnnsData
   { tad_knownanns :: Class
   , tad_ann_tc :: TyCon
-  , tad_loc_tc :: TyCon
+  , tad_word64 :: TyCon
   }
 
 
@@ -63,17 +66,16 @@ data TransitiveAnnsData = TransitiveAnnsData
 -- 'EmergeData'.
 lookupTransitiveAnnssData :: TcPluginM TransitiveAnnsData
 lookupTransitiveAnnssData = do
-    Found _ md  <- findImportedModule modul Nothing
+    Found _ md  <- findImportedModule (mkModuleName "TransitiveAnns.Types") Nothing
+    Found _ dw  <- findImportedModule (mkModuleName "GHC.Word") Nothing
     emergeTcNm  <- lookupOrig md $ mkTcOcc "KnownAnnotations"
-    ann  <- lookupOrig md $ mkTcOcc "Annotation"
-    loc  <- lookupOrig md $ mkTcOcc "Location"
+    ann  <- lookupOrig md $ mkTcOcc "TrackAnn"
+    word64  <- lookupOrig dw $ mkTcOcc "Word64"
 
     TransitiveAnnsData
         <$> tcLookupClass emergeTcNm
         <*> tcLookupTyCon ann
-        <*> tcLookupTyCon loc
-  where
-    modul  = mkModuleName "TransitiveAnns.Types"
+        <*> tcLookupTyCon word64
 
 
 transann :: ModGuts -> CoreM ModGuts
@@ -133,7 +135,7 @@ solveKnownAnns tad _ _ ws
         annenv' <- unsafeTcPluginTcM $ liftIO $ prepareAnnotations hsc Nothing
         let annenv = extendAnnEnvList annenv' anns
         let dec = getVars $ getDec decs n
-            z = foldMap (\v -> findAnns (deserializeWithData @TA.Annotation) annenv $ NamedTarget $ getName v) dec
+            z = foldMap (\v -> findAnns (deserializeWithData @TrackAnn) annenv $ NamedTarget $ getName v) dec
         pure $ TcPluginOk [(EvExpr $ mkConApp (head $ tyConDataCons $ classTyCon $ tad_knownanns tad) $ pure $ buildCore tad z, known)] []
   | otherwise = pure $ TcPluginOk [] []
 
@@ -150,12 +152,20 @@ getDec bs n = listToMaybe $ do
 mkString :: String -> Expr Var
 mkString str = mkListExpr charTy $ fmap mkCharExpr str
 
-buildCore :: TransitiveAnnsData -> [TA.Annotation] -> Expr Var
+buildCore :: TransitiveAnnsData -> [TrackAnn] -> Expr Var
 buildCore tad anns = mkListExpr (mkTyConTy $ tad_ann_tc tad) $ fmap (buildAnn tad) anns
 
-buildAnn :: TransitiveAnnsData -> TA.Annotation -> CoreExpr
-buildAnn tad (TA.Annotation loc s str) = mkConApp (head $ tyConDataCons $ tad_ann_tc tad) $ [mkLoc tad loc, mkString s, mkString str]
+mkWord64Expr :: TransitiveAnnsData -> Word64 -> CoreExpr
+mkWord64Expr tad
+  = mkConApp (head $ tyConDataCons $ tad_word64 tad)
+  . pure
+  . mkWord64LitWord64
 
-mkLoc :: TransitiveAnnsData -> TA.Location -> CoreExpr
-mkLoc tad loc = mkConApp (tyConDataCons (tad_loc_tc tad) !! fromEnum loc) []
+buildAnn :: TransitiveAnnsData -> TrackAnn -> CoreExpr
+buildAnn tad (TrackAnn w1 w2 d) =
+  mkConApp (head $ tyConDataCons $ tad_ann_tc tad)
+    [ mkWord64Expr tad w1
+    , mkWord64Expr tad w2
+    , mkListExpr (mkTyConTy $ tad_word64 tad) $ fmap (mkWord64Expr tad) d
+    ]
 
