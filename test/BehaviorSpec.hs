@@ -1,22 +1,30 @@
 {-# OPTIONS_GHC -fplugin=TransitiveAnns.Plugin #-}
+{-# LANGUAGE TypeApplications #-}
 
 module BehaviorSpec where
 
 import Test.Hspec
-import Test
+import Test2
+import TestTy
 import TransitiveAnns.Types
 
 
-{-# ANN spec (Annotation Local "run" "here") #-}
+{-# ANN spec (track @Int 55) #-}
 spec :: Spec
 spec = do
-  it "should find transitive anns" $ do
-    test `shouldBe`
-      ( [ Annotation Remote "hello from" "test3"
-        , Annotation Remote "hello from" "test2"
+  it "should find transitive anns (@Bool)" $ do
+    withAnnotations test2 `shouldBe`
+      ( [ True
+        , False
+        ]
+      , 4)
+
+  it "should find transitive anns (@Custom)" $ do
+    withAnnotations test2 `shouldBe`
+      ( [ Custom 17
         ]
       , 4)
 
   it "should find locally attached anns" $ do
-    annotationsVal `shouldContain` [Annotation Local "run" "here"]
+    annotationsVal `shouldContain` [55 :: Int]
 
