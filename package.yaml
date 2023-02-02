@@ -25,6 +25,7 @@ dependencies:
 - ghc-tcplugins-extra
 - syb
 - containers
+- hspec
 
 ghc-options:
 - -Wall
@@ -37,4 +38,18 @@ ghc-options:
 
 library:
   source-dirs: src
+
+tests:
+  test:
+    main:                Main.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    build-tools:
+    - hspec-discover >= 2.0
+    dependencies:
+    - transitive-anns
+    - hspec
 
