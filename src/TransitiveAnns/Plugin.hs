@@ -134,7 +134,7 @@ solveKnownAnns tad _ _ ws
         let annenv = extendAnnEnvList annenv' anns
         let dec = getVars $ getDec decs n
             z = foldMap (\v -> findAnns (deserializeWithData @TA.Annotation) annenv $ NamedTarget $ getName v) dec
-        pure $ TcPluginOk [(EvExpr $ buildCore tad z, known)] []
+        pure $ TcPluginOk [(EvExpr $ mkConApp (head $ tyConDataCons $ classTyCon $ tad_knownanns tad) $ pure $ buildCore tad z, known)] []
   | otherwise = pure $ TcPluginOk [] []
 
 getDec :: LHsBinds GhcTc -> Name -> Maybe (HsBindLR GhcTc GhcTc)
@@ -154,8 +154,8 @@ buildCore :: TransitiveAnnsData -> [TA.Annotation] -> Expr Var
 buildCore tad anns = mkListExpr (mkTyConTy $ tad_ann_tc tad) $ fmap (buildAnn tad) anns
 
 buildAnn :: TransitiveAnnsData -> TA.Annotation -> CoreExpr
-buildAnn tad (TA.Annotation loc s str) = mkCoreConApps (head $ tyConDataCons $ tad_ann_tc tad) $ [mkLoc tad loc, mkString s, mkString str]
+buildAnn tad (TA.Annotation loc s str) = mkConApp (head $ tyConDataCons $ tad_ann_tc tad) $ [mkLoc tad loc, mkString s, mkString str]
 
 mkLoc :: TransitiveAnnsData -> TA.Location -> CoreExpr
-mkLoc tad loc = mkCoreConApps (tyConDataCons (tad_loc_tc tad) !! fromEnum loc) []
+mkLoc tad loc = mkConApp (tyConDataCons (tad_loc_tc tad) !! fromEnum loc) []
 
