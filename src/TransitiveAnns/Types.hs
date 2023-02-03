@@ -10,6 +10,8 @@
 
 module TransitiveAnns.Types where
 
+import qualified Data.Set as S
+import Data.Set (Set)
 import Data.Data (Typeable, Data, typeRepFingerprint, typeRep)
 import Data.Maybe (mapMaybe)
 import GHC.Fingerprint.Type (Fingerprint (Fingerprint))
@@ -35,8 +37,8 @@ track = TrackAnn w1 w2 . fmap fromIntegral . serializeWithData
 class KnownAnnotations where
   rawAnnotationsVal :: [TrackAnn]
 
-annotationsVal :: (KnownAnnotations, Data a) => [a]
-annotationsVal = mapMaybe fromTrackAnn rawAnnotationsVal
+annotationsVal :: (KnownAnnotations, Data a, Ord a) => Set a
+annotationsVal = S.fromList $ mapMaybe fromTrackAnn rawAnnotationsVal
 
 fromTrackAnn :: forall a. Data a => TrackAnn -> Maybe a
 fromTrackAnn (TrackAnn w1 w2 d)
@@ -44,6 +46,6 @@ fromTrackAnn (TrackAnn w1 w2 d)
       Just $ deserializeWithData $ fmap fromIntegral d
   | otherwise = Nothing
 
-withAnnotations :: (KnownAnnotations, Data a) => b -> ([a], b)
+withAnnotations :: (KnownAnnotations, Data a, Ord a) => b -> (Set a, b)
 withAnnotations b = (annotationsVal, b)
 

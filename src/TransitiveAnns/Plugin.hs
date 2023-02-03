@@ -10,7 +10,7 @@ import           Bag (bagToList)
 import           Class (classTyCon)
 import           Constraint
 import           Data.Data hiding (TyCon)
-import           Data.Foldable (fold)
+import           Data.Foldable (fold, toList)
 import           Data.Functor ((<&>))
 import           Data.Generics (everything, mkQ)
 import           Data.Map (Map)
@@ -18,6 +18,7 @@ import qualified Data.Map as M
 import           Data.Maybe (fromMaybe, listToMaybe, mapMaybe)
 import           Data.Set (Set)
 import qualified Data.Set as S
+import           Data.Word (Word64)
 import           GHC (GhcTc, Class)
 import           GHC.Hs.Binds
 import           GhcPlugins hiding (TcPlugin, (<>), empty)
@@ -25,8 +26,7 @@ import           TcEvidence (EvTerm(EvExpr))
 import           TcPluginM (findImportedModule, lookupOrig, tcLookupClass, tcLookupTyCon)
 import           TcRnMonad
 import           TransitiveAnns.Types (TrackAnn (..))
-import TysPrim (word64PrimTy, word64PrimTyCon)
-import Data.Word (Word64)
+import Data.Coerce (coerce)
 
 ------------------------------------------------------------------------------
 
@@ -88,7 +88,7 @@ transann mg = do
       anns = lookupAttachedAnns annenv all_ids
       annotated = withAnnotations anns contents
       new_anns = buildNewAnnotations annotated
-  pure $ mg { mg_anns = new_anns ++ mganns }
+  pure $ mg { mg_anns = addNoDups mganns new_anns }
 
 location :: TcBinderStack -> Maybe Name
 location tcbs = do
@@ -160,6 +160,39 @@ mkWord64Expr tad
   = mkConApp (head $ tyConDataCons $ tad_word64 tad)
   . pure
   . mkWord64LitWord64
+
+newtype A' = A' Annotation
+
+instance Eq A' where
+  A' (Annotation (NamedTarget na) (Serialized _ wos)) == A' (Annotation (NamedTarget na') (Serialized _ wos'))
+    = na == na' && wos == wos'
+  A' (Annotation NamedTarget{} _) == A' (Annotation ModuleTarget{} _)
+    = False
+  A' (Annotation ModuleTarget{} _) == A' (Annotation NamedTarget{} _)
+    = False
+  A' (Annotation (ModuleTarget m) (Serialized _ wos)) == A' (Annotation (ModuleTarget m') (Serialized _ wos'))
+    = m == m' && wos == wos'
+
+instance Ord A' where
+  A' (Annotation (NamedTarget na) (Serialized _ wos)) `compare` A' (Annotation (NamedTarget na') (Serialized _ wos'))
+    = compare na na' <> compare wos wos'
+  A' (Annotation NamedTarget{} _) `compare` A' (Annotation ModuleTarget{} _)
+    = LT
+  A' (Annotation ModuleTarget{} _) `compare` A' (Annotation NamedTarget{} _)
+    = GT
+  A' (Annotation (ModuleTarget m) (Serialized _ wos)) `compare` A' (Annotation (ModuleTarget m') (Serialized _ wos'))
+    = compare m m' <> compare wos wos'
+
+
+
+
+addNoDups :: [Annotation] -> [Annotation] -> [Annotation]
+addNoDups old new =
+  let oldset = S.fromList (coerce @_ @[A'] old)
+      newset = S.fromList (coerce @_ @[A'] new)
+   in coerce (toList (oldset S.\\ newset)) ++ old
+
+
 
 buildAnn :: TransitiveAnnsData -> TrackAnn -> CoreExpr
 buildAnn tad (TrackAnn w1 w2 d) =
