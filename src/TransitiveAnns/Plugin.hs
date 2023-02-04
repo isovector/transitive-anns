@@ -126,9 +126,6 @@ findWanted c ct = do
 solve :: TransitiveAnnsData -> TcPluginSolver
 solve tad _ _ ws = do
   let over k f = traverse (k tad) $ mapMaybe (findWanted $ f tad) ws
-  pprTraceM "all wanteds" $ ppr $ fmap (splitTyConApp_maybe . ctev_pred . cc_ev) ws
-  pprTraceM "all wanted spans" $ ppr $ fmap (tcl_bndrs . ctl_env . ctLoc) ws
-
   adds   <- over solveAddAnn    tad_add_ann
   knowns <- over solveKnownAnns tad_knownanns
   let res = concat $ adds <> knowns
@@ -137,9 +134,7 @@ solve tad _ _ ws = do
 
 solveKnownAnns :: TransitiveAnnsData -> Ct -> TcPluginM [(EvTerm, Ct)]
 solveKnownAnns tad known = do
-  -- span <- unsafeTcPluginTcM $ fmap tcl_loc getLclEnv
-  -- pprTraceM "span" $ ppr $ tcl_bndrs $ ctl_env $ ctLoc known
-  env <- unsafeTcPluginTcM $ fmap tcl_bndrs getLclEnv
+  let env = tcl_bndrs $ ctl_env $ ctLoc known
   case location env of
     Nothing -> do
       pprTraceM "got no location for" $ ppr known
@@ -208,7 +203,8 @@ buildCore :: TransitiveAnnsData -> [TA.Annotation] -> Expr Var
 buildCore tad anns = mkListExpr (mkTyConTy $ tad_ann_tc tad) $ fmap (buildAnn tad) anns
 
 buildAnn :: TransitiveAnnsData -> TA.Annotation -> CoreExpr
-buildAnn tad (TA.Annotation loc s str) = mkConApp (head $ tyConDataCons $ tad_ann_tc tad) $ [mkLoc tad loc, mkString s, mkString str]
+buildAnn tad (TA.Annotation loc s str)
+  = mkConApp (head $ tyConDataCons $ tad_ann_tc tad) $ [mkLoc tad loc, mkString s, mkString str]
 
 newtype A' = A' Annotation
 

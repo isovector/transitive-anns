@@ -1,6 +1,9 @@
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeApplications      #-}
+{-# OPTIONS_GHC -dcore-lint        #-}
 
-{-# OPTIONS_GHC -dcore-lint                    #-}
 {-# OPTIONS_GHC -fplugin=TransitiveAnns.Plugin #-}
 
 module BehaviorSpec where
@@ -17,9 +20,10 @@ t2 :: (Set Annotation, Int)
 t2 = withAnnotations test2
 
 t3 :: (Set Annotation, Int)
-t3 = withAnnotations test3
+t3 = (annotationsVal, test3)
 
 
+{-# ANN spec (Annotation Remote "yo" "b") #-}
 spec :: Spec
 spec = do
   -- it "should find transitive anns (@Bool)" $ do
@@ -45,6 +49,6 @@ spec = do
         ]
       , 4)
 
-  -- it "should find locally attached anns" $ do
-  --   annotationsVal `shouldBe` S.fromList [55 :: Int]
+  it "should find locally attached anns" $ do
+    annotationsVal `shouldBe` S.fromList [Annotation Remote "yo" "b"]
 
