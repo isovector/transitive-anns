@@ -5,8 +5,7 @@ module Test2 where
 import TransitiveAnns.Types
 import Test3
 
-{-# ANN test2 (track False) #-}
-{-# ANN test2 (track "hello") #-}
+{-# ANN test2 (Annotation Remote "hello from" "test2") #-}
 test2 :: Int
 test2 = test3
 

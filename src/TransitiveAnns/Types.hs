@@ -1,51 +1,25 @@
-{-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE DeriveDataTypeable    #-}
-{-# LANGUAGE GADTs                 #-}
-{-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE TypeApplications      #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
 
 module TransitiveAnns.Types where
 
-import qualified Data.Set as S
-import Data.Set (Set)
-import Data.Data (Typeable, Data, typeRepFingerprint, typeRep)
-import Data.Maybe (mapMaybe)
-import GHC.Fingerprint.Type (Fingerprint (Fingerprint))
-import Data.Word (Word64)
-import Data.Proxy (Proxy(Proxy))
-import GhcPlugins (serializeWithData, deserializeWithData)
+import Data.Data (Typeable, Data)
 
-data TrackAnn = TrackAnn
-  { ta_fingerprint_w1 :: Word64
-  , ta_fingerprint_w2 :: Word64
-  , ta_data :: [Word64]
+data Location = Local | Remote
+  deriving (Eq, Ord, Show, Enum, Bounded, Typeable, Data)
+
+data Annotation = Annotation
+  { ann_location :: Location
+  , ann_api      :: String
+  , ann_method   :: String
   }
-  deriving (Eq, Ord, Show, Data, Typeable)
+  deriving (Eq, Ord, Show, Typeable, Data)
 
-fingerprint :: forall a. Data a => Fingerprint
-fingerprint = typeRepFingerprint $ typeRep $ Proxy @a
-
-track :: forall a. Data a => a -> TrackAnn
-track = TrackAnn w1 w2 . fmap fromIntegral . serializeWithData
-  where
-    Fingerprint w1 w2 = fingerprint @a
 
 class KnownAnnotations where
-  rawAnnotationsVal :: [TrackAnn]
+  annotationsVal :: [Annotation]
 
-annotationsVal :: (KnownAnnotations, Data a, Ord a) => Set a
-annotationsVal = S.fromList $ mapMaybe fromTrackAnn rawAnnotationsVal
 
-fromTrackAnn :: forall a. Data a => TrackAnn -> Maybe a
-fromTrackAnn (TrackAnn w1 w2 d)
-  | Fingerprint w1 w2 == fingerprint @a =
-      Just $ deserializeWithData $ fmap fromIntegral d
-  | otherwise = Nothing
-
-withAnnotations :: (KnownAnnotations, Data a, Ord a) => b -> (Set a, b)
-withAnnotations b = (annotationsVal, b)
+withAnnotations :: KnownAnnotations => a -> ([Annotation], a)
+withAnnotations a = (annotationsVal, a)
 

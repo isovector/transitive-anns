@@ -28,7 +28,6 @@ library
       Test
       Test2
       Test3
-      TestTy
       TransitiveAnns.Plugin
       TransitiveAnns.Types
   other-modules:

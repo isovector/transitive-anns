@@ -4,8 +4,7 @@ module Test where
 
 import TransitiveAnns.Types
 import Test2
-import TestTy
 
-test :: ([Custom], Int)
+test :: ([Annotation], Int)
 test = withAnnotations test2
 
