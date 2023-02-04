@@ -2,6 +2,7 @@
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE TupleSections #-}
 
 module TransitiveAnns.Plugin where
 
@@ -26,6 +27,7 @@ import           TcPluginM (findImportedModule, lookupOrig, tcLookupClass, tcLoo
 import           TcRnMonad
 import qualified TransitiveAnns.Types as TA
 import Control.Monad (guard)
+import Data.String (fromString)
 
 ------------------------------------------------------------------------------
 
@@ -176,9 +178,17 @@ parsePromotedAnn tad ty = do
 
 
 solveAddAnn :: TransitiveAnnsData -> Ct -> TcPluginM [(EvTerm, Ct)]
-solveAddAnn tad to_add = do
-  -- pprTraceM "to add" $ ppr $ show $ parsePromotedAnn tad $ ctev_pred $ cc_ev to_add
-  pure [(EvExpr $ mkConApp (head $ tyConDataCons $ classTyCon $ tad_add_ann tad) [], to_add)]
+solveAddAnn tad to_add
+  | Just ann@(TA.Annotation loc api method) <- parsePromotedAnn tad $ ctev_pred $ cc_ev to_add
+  = do
+    pure $ pure $ (, to_add)
+      $ EvExpr
+      $ mkConApp (head $ tyConDataCons $ classTyCon $ tad_add_ann tad)
+          [ Type $ mkTyConTy $ promoteDataCon $ (!! fromEnum loc) $ tyConDataCons $ tad_loc_tc tad
+          , Type $ mkStrLitTy $ fromString api
+          , Type $ mkStrLitTy $ fromString method
+          ]
+  | otherwise = pure []
 
 
 getDec :: LHsBinds GhcTc -> Name -> Maybe (HsBindLR GhcTc GhcTc)
