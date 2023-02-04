@@ -26,7 +26,6 @@ import           TcPluginM (findImportedModule, lookupOrig, tcLookupClass, tcLoo
 import           TcRnMonad
 import qualified TransitiveAnns.Types as TA
 import Control.Monad (guard)
-import Debug.Trace (traceM)
 
 ------------------------------------------------------------------------------
 
@@ -67,19 +66,17 @@ data TransitiveAnnsData = TransitiveAnnsData
 -- 'EmergeData'.
 lookupTransitiveAnnssData :: TcPluginM TransitiveAnnsData
 lookupTransitiveAnnssData = do
-    Found _ md  <- findImportedModule modul Nothing
-    known  <- lookupOrig md $ mkTcOcc "KnownAnnotations"
-    add_ann  <- lookupOrig md $ mkTcOcc "AddAnnotation"
-    ann  <- lookupOrig md $ mkTcOcc "Annotation"
-    loc  <- lookupOrig md $ mkTcOcc "Location"
+    Found _ tys_mod  <- findImportedModule (mkModuleName "TransitiveAnns.Types") Nothing
+    known  <- lookupOrig tys_mod $ mkTcOcc "KnownAnnotations"
+    add_ann  <- lookupOrig tys_mod $ mkTcOcc "AddAnnotation"
+    ann  <- lookupOrig tys_mod $ mkTcOcc "Annotation"
+    loc  <- lookupOrig tys_mod $ mkTcOcc "Location"
 
     TransitiveAnnsData
         <$> tcLookupClass known
         <*> tcLookupClass add_ann
         <*> tcLookupTyCon ann
         <*> tcLookupTyCon loc
-  where
-    modul  = mkModuleName "TransitiveAnns.Types"
 
 
 transann :: ModGuts -> CoreM ModGuts
@@ -127,18 +124,26 @@ findWanted c ct = do
 solve :: TransitiveAnnsData -> TcPluginSolver
 solve tad _ _ ws = do
   let over k f = traverse (k tad) $ mapMaybe (findWanted $ f tad) ws
+  pprTraceM "all wanteds" $ ppr $ fmap (splitTyConApp_maybe . ctev_pred . cc_ev) ws
+  pprTraceM "all wanted spans" $ ppr $ fmap (tcl_bndrs . ctl_env . ctLoc) ws
 
   adds   <- over solveAddAnn    tad_add_ann
   knowns <- over solveKnownAnns tad_knownanns
-  pure $ TcPluginOk (concat $ adds <> knowns) []
+  let res = concat $ adds <> knowns
+  pure $ TcPluginOk res []
 
 
 solveKnownAnns :: TransitiveAnnsData -> Ct -> TcPluginM [(EvTerm, Ct)]
 solveKnownAnns tad known = do
+  -- span <- unsafeTcPluginTcM $ fmap tcl_loc getLclEnv
+  -- pprTraceM "span" $ ppr $ tcl_bndrs $ ctl_env $ ctLoc known
   env <- unsafeTcPluginTcM $ fmap tcl_bndrs getLclEnv
   case location env of
-    Nothing -> pure []
+    Nothing -> do
+      pprTraceM "got no location for" $ ppr known
+      pure []
     Just n -> do
+      pprTraceM "solving knowns for" $ ppr env
       hsc <- unsafeTcPluginTcM getTopEnv
       decs <- unsafeTcPluginTcM $ tcg_binds <$> getGblEnv
       anns <- unsafeTcPluginTcM $ tcg_anns <$> getGblEnv
@@ -146,8 +151,13 @@ solveKnownAnns tad known = do
       let annenv = extendAnnEnvList annenv' anns
       let dec = getVars $ getDec decs n
           z = foldMap (\v -> findAnns (deserializeWithData @TA.Annotation) annenv $ NamedTarget $ getName v) dec
-      pprTraceM "solving for" $ ppr (n, show z)
-      pure [(EvExpr $ mkConApp (head $ tyConDataCons $ classTyCon $ tad_knownanns tad) $ pure $ buildCore tad z, known)]
+      -- pprTraceM "solving for" $ ppr (n, show z)
+      pure $ pure $
+        ( EvExpr $
+            mkConApp (head $ tyConDataCons $ classTyCon $ tad_knownanns tad)
+              [Type (anyTypeOfKind liftedTypeKind) , buildCore tad z]
+        , known
+        )
 
 
 parsePromotedAnn :: TransitiveAnnsData -> PredType -> Maybe TA.Annotation
@@ -167,7 +177,7 @@ parsePromotedAnn tad ty = do
 
 solveAddAnn :: TransitiveAnnsData -> Ct -> TcPluginM [(EvTerm, Ct)]
 solveAddAnn tad to_add = do
-  pprTraceM "to add" $ ppr $ show $ parsePromotedAnn tad $ ctev_pred $ cc_ev to_add
+  -- pprTraceM "to add" $ ppr $ show $ parsePromotedAnn tad $ ctev_pred $ cc_ev to_add
   pure [(EvExpr $ mkConApp (head $ tyConDataCons $ classTyCon $ tad_add_ann tad) [], to_add)]
 
 

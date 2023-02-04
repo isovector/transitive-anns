@@ -1,7 +1,10 @@
+{-# LANGUAGE AllowAmbiguousTypes   #-}
+{-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE DeriveDataTypeable    #-}
+{-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeApplications #-}
 
 module TransitiveAnns.Types where
 
@@ -22,15 +25,15 @@ data Annotation = Annotation
 
 class AddAnnotation (loc :: Location) (api :: Symbol) (method :: Symbol)
 
-class KnownAnnotations where
+class KnownAnnotations a where
   rawAnnotationsVal :: [Annotation]
 
-annotationsVal :: KnownAnnotations => Set Annotation
-annotationsVal = S.fromList rawAnnotationsVal
-{-# NOINLINE annotationsVal #-}
+annotationsVal :: forall x. KnownAnnotations x => Set Annotation
+annotationsVal = S.fromList (rawAnnotationsVal @x)
+{-# INLINE annotationsVal #-}
 
 
-withAnnotations :: KnownAnnotations => a -> (Set Annotation, a)
-withAnnotations a = (annotationsVal, a)
-{-# NOINLINE withAnnotations #-}
+withAnnotations :: forall a x. KnownAnnotations x => a -> (Set Annotation, a)
+withAnnotations a = (annotationsVal @x, a)
+{-# INLINE withAnnotations #-}
 
