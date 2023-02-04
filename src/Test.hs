@@ -2,9 +2,10 @@
 
 module Test where
 
+import Data.Set (Set)
 import TransitiveAnns.Types
 import Test2
 
-test :: ([Annotation], Int)
-test = withAnnotations test2
+test :: (Int)
+test = test2
 

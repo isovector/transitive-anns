@@ -18,7 +18,6 @@ import qualified Data.Map as M
 import           Data.Maybe (fromMaybe, listToMaybe, mapMaybe)
 import           Data.Set (Set)
 import qualified Data.Set as S
-import           Data.Word (Word64)
 import           GHC (GhcTc, Class)
 import           GHC.Hs.Binds
 import           GhcPlugins hiding (TcPlugin, (<>), empty)
@@ -26,6 +25,8 @@ import           TcEvidence (EvTerm(EvExpr))
 import           TcPluginM (findImportedModule, lookupOrig, tcLookupClass, tcLookupTyCon)
 import           TcRnMonad
 import qualified TransitiveAnns.Types as TA
+import Control.Monad (guard)
+import Debug.Trace (traceM)
 
 ------------------------------------------------------------------------------
 
@@ -55,6 +56,7 @@ buildNewAnnotations annotated = do
 
 data TransitiveAnnsData = TransitiveAnnsData
   { tad_knownanns :: Class
+  , tad_add_ann :: Class
   , tad_ann_tc :: TyCon
   , tad_loc_tc :: TyCon
   }
@@ -66,12 +68,14 @@ data TransitiveAnnsData = TransitiveAnnsData
 lookupTransitiveAnnssData :: TcPluginM TransitiveAnnsData
 lookupTransitiveAnnssData = do
     Found _ md  <- findImportedModule modul Nothing
-    emergeTcNm  <- lookupOrig md $ mkTcOcc "KnownAnnotations"
+    known  <- lookupOrig md $ mkTcOcc "KnownAnnotations"
+    add_ann  <- lookupOrig md $ mkTcOcc "AddAnnotation"
     ann  <- lookupOrig md $ mkTcOcc "Annotation"
     loc  <- lookupOrig md $ mkTcOcc "Location"
 
     TransitiveAnnsData
-        <$> tcLookupClass emergeTcNm
+        <$> tcLookupClass known
+        <*> tcLookupClass add_ann
         <*> tcLookupTyCon ann
         <*> tcLookupTyCon loc
   where
@@ -88,7 +92,7 @@ transann mg = do
       anns = lookupAttachedAnns annenv all_ids
       annotated = withAnnotations anns contents
       new_anns = buildNewAnnotations annotated
-  pure $ mg { mg_anns = addNoDups mganns new_anns }
+  pure $ mg { mg_anns = mganns <> new_anns }
 
 location :: TcBinderStack -> Maybe Name
 location tcbs = do
@@ -103,15 +107,15 @@ plugin = defaultPlugin
   { installCoreToDos = const $ pure . (CoreDoPluginPass "TransitiveAnns" transann :)
   , tcPlugin = const $ Just $ TcPlugin
       { tcPluginInit = lookupTransitiveAnnssData
-      , tcPluginSolve = solveKnownAnns
+      , tcPluginSolve = solve
 
       , tcPluginStop = const $ pure ()
       }
   , pluginRecompile  = purePlugin
   }
 
-findEmergePred :: Class -> Ct -> Maybe Ct
-findEmergePred c ct = do
+findWanted :: Class -> Ct -> Maybe Ct
+findWanted c ct = do
   let p = ctev_pred $ cc_ev ct
   case splitTyConApp_maybe p of
     Just (x, _) ->
@@ -120,24 +124,52 @@ findEmergePred c ct = do
         False -> Nothing
     _ -> Nothing
 
+solve :: TransitiveAnnsData -> TcPluginSolver
+solve tad _ _ ws = do
+  let over k f = traverse (k tad) $ mapMaybe (findWanted $ f tad) ws
 
-solveKnownAnns :: TransitiveAnnsData -> TcPluginSolver
-solveKnownAnns tad _ _ ws
-  | [known] <- mapMaybe (findEmergePred (tad_knownanns tad)) ws
-  = do
-    env <- unsafeTcPluginTcM $ fmap tcl_bndrs getLclEnv
-    case location env of
-      Nothing -> pure $ TcPluginOk [] []
-      Just n -> do
-        hsc <- unsafeTcPluginTcM getTopEnv
-        decs <- unsafeTcPluginTcM $ tcg_binds <$> getGblEnv
-        anns <- unsafeTcPluginTcM $ tcg_anns <$> getGblEnv
-        annenv' <- unsafeTcPluginTcM $ liftIO $ prepareAnnotations hsc Nothing
-        let annenv = extendAnnEnvList annenv' anns
-        let dec = getVars $ getDec decs n
-            z = foldMap (\v -> findAnns (deserializeWithData @TA.Annotation) annenv $ NamedTarget $ getName v) dec
-        pure $ TcPluginOk [(EvExpr $ mkConApp (head $ tyConDataCons $ classTyCon $ tad_knownanns tad) $ pure $ buildCore tad z, known)] []
-  | otherwise = pure $ TcPluginOk [] []
+  adds   <- over solveAddAnn    tad_add_ann
+  knowns <- over solveKnownAnns tad_knownanns
+  pure $ TcPluginOk (concat $ adds <> knowns) []
+
+
+solveKnownAnns :: TransitiveAnnsData -> Ct -> TcPluginM [(EvTerm, Ct)]
+solveKnownAnns tad known = do
+  env <- unsafeTcPluginTcM $ fmap tcl_bndrs getLclEnv
+  case location env of
+    Nothing -> pure []
+    Just n -> do
+      hsc <- unsafeTcPluginTcM getTopEnv
+      decs <- unsafeTcPluginTcM $ tcg_binds <$> getGblEnv
+      anns <- unsafeTcPluginTcM $ tcg_anns <$> getGblEnv
+      annenv' <- unsafeTcPluginTcM $ liftIO $ prepareAnnotations hsc Nothing
+      let annenv = extendAnnEnvList annenv' anns
+      let dec = getVars $ getDec decs n
+          z = foldMap (\v -> findAnns (deserializeWithData @TA.Annotation) annenv $ NamedTarget $ getName v) dec
+      pprTraceM "solving for" $ ppr (n, show z)
+      pure [(EvExpr $ mkConApp (head $ tyConDataCons $ classTyCon $ tad_knownanns tad) $ pure $ buildCore tad z, known)]
+
+
+parsePromotedAnn :: TransitiveAnnsData -> PredType -> Maybe TA.Annotation
+parsePromotedAnn tad ty = do
+  (tc, [loc_ty, api_ty, method_ty]) <- splitTyConApp_maybe ty
+  guard $ tc == classTyCon (tad_add_ann tad)
+
+  (loc_tc, []) <- splitTyConApp_maybe loc_ty
+  loc_dc <- isPromotedDataCon_maybe loc_tc
+  guard $ dataConTyCon loc_dc == tad_loc_tc tad
+  let loc = toEnum $ dataConTag loc_dc - 1
+
+  api <- fmap unpackFS $ isStrLitTy api_ty
+  method <- fmap unpackFS $ isStrLitTy method_ty
+  pure $ TA.Annotation loc api method
+
+
+solveAddAnn :: TransitiveAnnsData -> Ct -> TcPluginM [(EvTerm, Ct)]
+solveAddAnn tad to_add = do
+  pprTraceM "to add" $ ppr $ show $ parsePromotedAnn tad $ ctev_pred $ cc_ev to_add
+  pure [(EvExpr $ mkConApp (head $ tyConDataCons $ classTyCon $ tad_add_ann tad) [], to_add)]
+
 
 getDec :: LHsBinds GhcTc -> Name -> Maybe (HsBindLR GhcTc GhcTc)
 getDec bs n = listToMaybe $ do
