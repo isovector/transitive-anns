@@ -3,22 +3,26 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module TransitiveAnns.Plugin where
 
 import           Bag (bagToList)
 import           Class (classTyCon)
 import           Constraint
+import           Control.Monad (guard)
 import           Data.Coerce (coerce)
 import           Data.Data hiding (TyCon)
 import           Data.Foldable (fold, toList)
 import           Data.Functor ((<&>))
 import           Data.Generics (everything, mkQ)
+import           Data.IORef (newIORef, modifyIORef', writeIORef, readIORef)
 import           Data.Map (Map)
 import qualified Data.Map as M
 import           Data.Maybe (fromMaybe, listToMaybe, mapMaybe)
 import           Data.Set (Set)
 import qualified Data.Set as S
+import           Data.String (fromString)
 import           GHC (GhcTc, Class)
 import           GHC.Hs.Binds
 import           GhcPlugins hiding (TcPlugin, (<>), empty)
@@ -26,10 +30,14 @@ import           TcEvidence (EvTerm(EvExpr))
 import           TcPluginM (findImportedModule, lookupOrig, tcLookupClass, tcLookupTyCon)
 import           TcRnMonad
 import qualified TransitiveAnns.Types as TA
-import Control.Monad (guard)
-import Data.String (fromString)
+import System.IO.Unsafe (unsafePerformIO)
 
 ------------------------------------------------------------------------------
+
+unsafeAnnsToAddRef :: IORef [Annotation]
+unsafeAnnsToAddRef = unsafePerformIO $ newIORef []
+{-# NOINLINE unsafeAnnsToAddRef #-}
+
 
 forBinds :: Ord b => (Expr b -> r) -> Bind b -> Map b r
 forBinds f (NonRec b ex) = M.singleton b $ f ex
@@ -85,17 +93,19 @@ transann :: ModGuts -> CoreM ModGuts
 transann mg = do
   hsc <- getHscEnv
   annenv <- liftIO $ prepareAnnotations hsc $ Just mg
+  added <- liftIO $ readIORef unsafeAnnsToAddRef
   let mganns = mg_anns mg
   let contents = referencedVars $ mg_binds mg
       all_ids = fold contents
       anns = lookupAttachedAnns annenv all_ids
       annotated = withAnnotations anns contents
       new_anns = buildNewAnnotations annotated
-  pure $ mg { mg_anns = mganns <> new_anns }
+  pprTraceM "added anns" $ ppr added
+  pure $ mg { mg_anns = mganns <> new_anns <> added }
 
-location :: TcBinderStack -> Maybe Name
-location tcbs = do
-  h <- listToMaybe tcbs
+location :: Ct -> Maybe Name
+location ct = do
+  h <- listToMaybe $ tcl_bndrs $ ctl_env $ ctLoc ct
   Just $ case h of
     TcIdBndr var _ -> getName var
     TcIdBndr_ExpType na _ _ -> na
@@ -105,9 +115,11 @@ plugin :: Plugin
 plugin = defaultPlugin
   { installCoreToDos = const $ pure . (CoreDoPluginPass "TransitiveAnns" transann :)
   , tcPlugin = const $ Just $ TcPlugin
-      { tcPluginInit = lookupTransitiveAnnssData
+      { tcPluginInit = do
+          pprTraceM "starting plugin" $ ppr $ text "hello"
+          unsafeTcPluginTcM $ liftIO $ writeIORef unsafeAnnsToAddRef []
+          lookupTransitiveAnnssData
       , tcPluginSolve = solve
-
       , tcPluginStop = const $ pure ()
       }
   , pluginRecompile  = purePlugin
@@ -125,6 +137,7 @@ findWanted c ct = do
 
 solve :: TransitiveAnnsData -> TcPluginSolver
 solve tad _ _ ws = do
+  pprTraceM "all wanted spans" $ ppr $ fmap (tcl_bndrs . ctl_env . ctLoc) ws
   let over k f = traverse (k tad) $ mapMaybe (findWanted $ f tad) ws
   adds   <- over solveAddAnn    tad_add_ann
   knowns <- over solveKnownAnns tad_knownanns
@@ -133,20 +146,15 @@ solve tad _ _ ws = do
 
 
 solveKnownAnns :: TransitiveAnnsData -> Ct -> TcPluginM [(EvTerm, Ct)]
-solveKnownAnns tad known = do
-  let env = tcl_bndrs $ ctl_env $ ctLoc known
-  case location env of
-    Nothing -> do
-      pprTraceM "got no location for" $ ppr known
-      pure []
-    Just n -> do
-      pprTraceM "solving knowns for" $ ppr env
+solveKnownAnns tad known
+  | Just loc <- location known
+  = do
       hsc <- unsafeTcPluginTcM getTopEnv
-      decs <- unsafeTcPluginTcM $ tcg_binds <$> getGblEnv
       anns <- unsafeTcPluginTcM $ tcg_anns <$> getGblEnv
       annenv' <- unsafeTcPluginTcM $ liftIO $ prepareAnnotations hsc Nothing
       let annenv = extendAnnEnvList annenv' anns
-      let dec = getVars $ getDec decs n
+      decs <- unsafeTcPluginTcM $ tcg_binds <$> getGblEnv
+      let dec = getVars $ fmap snd $ getDec decs loc
           z = foldMap (\v -> findAnns (deserializeWithData @TA.Annotation) annenv $ NamedTarget $ getName v) dec
       -- pprTraceM "solving for" $ ppr (n, show z)
       pure $ pure $
@@ -155,11 +163,12 @@ solveKnownAnns tad known = do
               [Type (anyTypeOfKind liftedTypeKind) , buildCore tad z]
         , known
         )
+    | otherwise = pure []
 
 
 parsePromotedAnn :: TransitiveAnnsData -> PredType -> Maybe TA.Annotation
 parsePromotedAnn tad ty = do
-  (tc, [loc_ty, api_ty, method_ty]) <- splitTyConApp_maybe ty
+  (tc, [loc_ty, api_ty, method_ty, _phantom]) <- splitTyConApp_maybe ty
   guard $ tc == classTyCon (tad_add_ann tad)
 
   (loc_tc, []) <- splitTyConApp_maybe loc_ty
@@ -175,24 +184,35 @@ parsePromotedAnn tad ty = do
 solveAddAnn :: TransitiveAnnsData -> Ct -> TcPluginM [(EvTerm, Ct)]
 solveAddAnn tad to_add
   | Just ann@(TA.Annotation loc api method) <- parsePromotedAnn tad $ ctev_pred $ cc_ev to_add
+  , Just ctloc <- location to_add
   = do
+    decs <- unsafeTcPluginTcM $ tcg_binds <$> getGblEnv
+    let Just dec = fmap fst $ getDec decs ctloc
+    unsafeTcPluginTcM
+      $ liftIO
+      $ modifyIORef' unsafeAnnsToAddRef
+      $ (Annotation (NamedTarget $ getName dec) (toSerialized serializeWithData ann) :)
     pure $ pure $ (, to_add)
       $ EvExpr
       $ mkConApp (head $ tyConDataCons $ classTyCon $ tad_add_ann tad)
           [ Type $ mkTyConTy $ promoteDataCon $ (!! fromEnum loc) $ tyConDataCons $ tad_loc_tc tad
           , Type $ mkStrLitTy $ fromString api
           , Type $ mkStrLitTy $ fromString method
+          , Type $ anyTypeOfKind liftedTypeKind
           ]
   | otherwise = pure []
 
 
-getDec :: LHsBinds GhcTc -> Name -> Maybe (HsBindLR GhcTc GhcTc)
+getDec :: LHsBinds GhcTc -> Name -> Maybe (Id, HsBindLR GhcTc GhcTc)
 getDec bs n = listToMaybe $ do
   L _ b <- bagToList bs
   everything (<>) (mkQ [] $ \case
-    FunBind {fun_id = L _ n'}
-      | getOccName n == getOccName n' -> [b]
-      | otherwise -> []
+    AbsBinds _ _ _ [(ABE _ poly mono _ _)] _ (bagToList -> [L _ (b@FunBind{})]) _
+      | getName poly == n || getName mono == n
+      -> pure (poly, b)
+    -- FunBind {fun_id = L _ n'}
+    --   | getOccName n == getOccName n' -> [(n', b)]
+    --   | otherwise -> []
     (_ :: HsBindLR GhcTc GhcTc) -> []
     ) b
 

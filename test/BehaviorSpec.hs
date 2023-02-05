@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeApplications      #-}
-{-# OPTIONS_GHC -dcore-lint        #-}
+{-# OPTIONS_GHC -ddump-cs-trace    #-}
 
 {-# OPTIONS_GHC -fplugin=TransitiveAnns.Plugin #-}
 
@@ -20,7 +20,7 @@ t2 :: (Set Annotation, Int)
 t2 = withAnnotations test2
 
 t3 :: (Set Annotation, Int)
-t3 = (annotationsVal, test3)
+t3 = withAnnotations test3
 
 
 {-# ANN spec (Annotation Remote "yo" "b") #-}

@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# OPTIONS_GHC -dcore-lint   #-}
 
 {-# OPTIONS_GHC -fplugin=TransitiveAnns.Plugin #-}
 
@@ -9,6 +10,6 @@ import TransitiveAnns.Types
 import Test3
 
 {-# ANN test2 (Annotation Remote "hello from" "test2") #-}
-test2 :: AddAnnotation 'Local "add" "ann" => Int
+test2 :: Int
 test2 = test3
 

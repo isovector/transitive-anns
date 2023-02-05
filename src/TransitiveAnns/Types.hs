@@ -23,7 +23,7 @@ data Annotation = Annotation
   }
   deriving (Eq, Ord, Show, Typeable, Data)
 
-class AddAnnotation (loc :: Location) (api :: Symbol) (method :: Symbol)
+class AddAnnotation (loc :: Location) (api :: Symbol) (method :: Symbol) a
 
 class KnownAnnotations a where
   rawAnnotationsVal :: [Annotation]
