@@ -29,6 +29,9 @@ library
       Test2
       Test3
       TransitiveAnns.Plugin
+      TransitiveAnns.Plugin.Annotations
+      TransitiveAnns.Plugin.Core
+      TransitiveAnns.Plugin.Utils
       TransitiveAnns.Types
   other-modules:
       Paths_transitive_anns
