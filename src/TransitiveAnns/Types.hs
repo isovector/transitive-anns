@@ -37,3 +37,6 @@ withAnnotations :: forall a x. KnownAnnotations x => a -> (Set Annotation, a)
 withAnnotations a = (annotationsVal @x, a)
 {-# INLINE withAnnotations #-}
 
+annotated :: forall a x. KnownAnnotations x => a -> Set Annotation
+annotated = fst . withAnnotations @a @x
+

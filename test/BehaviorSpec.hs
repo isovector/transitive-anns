@@ -2,7 +2,6 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeApplications      #-}
-{-# OPTIONS_GHC -ddump-cs-trace    #-}
 
 {-# OPTIONS_GHC -fplugin=TransitiveAnns.Plugin #-}
 
@@ -18,6 +17,9 @@ import           TransitiveAnns.Types
 
 t2 :: (Set Annotation, Int)
 t2 = withAnnotations test2
+
+t2' :: Set Annotation
+t2' = annotated test2
 
 t3 :: (Set Annotation, Int)
 t3 = withAnnotations test3

@@ -52,6 +52,8 @@ test-suite test
   main-is: Main.hs
   other-modules:
       BehaviorSpec
+      Ring
+      RingSpec
       Paths_transitive_anns
   hs-source-dirs:
       test

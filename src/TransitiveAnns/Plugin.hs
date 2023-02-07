@@ -7,6 +7,10 @@
 
 module TransitiveAnns.Plugin where
 
+import qualified Data.Map as M
+import Data.Map (Map)
+import qualified Data.Set as S
+import Data.Set (Set)
 import           Class (classTyCon)
 import           Constraint
 import           Data.Foldable (fold)
@@ -21,6 +25,7 @@ import           TransitiveAnns.Plugin.Annotations
 import           TransitiveAnns.Plugin.Utils
 import           TransitiveAnns.Plugin.Core
 import qualified TransitiveAnns.Types as TA
+import GHC.Hs.Dump
 
 
 unsafeAnnsToAddRef :: IORef [Annotation]
@@ -46,15 +51,17 @@ plugin = defaultPlugin
 transann :: ModGuts -> CoreM ModGuts
 transann mg = do
   hsc <- getHscEnv
-  annenv <- liftIO $ prepareAnnotations hsc $ Just mg
   added <- liftIO $ readIORef unsafeAnnsToAddRef
+  annenv' <- liftIO $ prepareAnnotations hsc $ Just mg
+  let annenv = extendAnnEnvList annenv' added
   let mganns = mg_anns mg
   let contents = referencedVars $ mg_binds mg
       all_ids = fold contents
       anns = lookupAttachedAnns annenv all_ids
-      annotated = withAnnotations anns contents
-      new_anns = buildNewAnnotations annotated
-  pprTraceM "added anns" $ ppr added
+      annotated = propagate contents $ fmap S.fromList anns
+      new_anns = buildNewAnnotations (fmap S.toList annotated)
+
+  pprTraceM "new anns" $ vcat $ fmap (\(v, s) -> ppr v <+> text (show s)) $ filter (not . null . snd) $ M.assocs annotated
   pure $ mg { mg_anns = mganns <> new_anns <> added }
 
 
