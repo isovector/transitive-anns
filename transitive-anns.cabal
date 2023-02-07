@@ -25,9 +25,6 @@ source-repository head
 
 library
   exposed-modules:
-      Test
-      Test2
-      Test3
       TransitiveAnns.Plugin
       TransitiveAnns.Plugin.Annotations
       TransitiveAnns.Plugin.Core
@@ -37,6 +34,10 @@ library
       Paths_transitive_anns
   hs-source-dirs:
       src
+  default-extensions:
+      AllowAmbiguousTypes
+      DataKinds
+      FlexibleContexts
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints
   build-depends:
       base >=4.7 && <5
@@ -51,13 +52,21 @@ test-suite test
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
-      BehaviorSpec
+      ObserveOtherModule
+      ObserveOtherModule2
+      ObserveOtherModuleSpec
+      ObserveSameModule
+      ObserveSameModuleSpec
       Ring
       RingSpec
       Paths_transitive_anns
   hs-source-dirs:
       test
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  default-extensions:
+      AllowAmbiguousTypes
+      DataKinds
+      FlexibleContexts
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N -fplugin=TransitiveAnns.Plugin -fno-warn-redundant-constraints -dcore-lint
   build-tool-depends:
       hspec-discover:hspec-discover >=2.0
   build-depends:

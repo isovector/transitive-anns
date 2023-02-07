@@ -27,6 +27,11 @@ dependencies:
 - containers
 - hspec
 
+default-extensions:
+  - AllowAmbiguousTypes
+  - DataKinds
+  - FlexibleContexts
+
 ghc-options:
 - -Wall
 - -Wcompat
@@ -47,6 +52,9 @@ tests:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    - -fplugin=TransitiveAnns.Plugin
+    - -fno-warn-redundant-constraints
+    - -dcore-lint
     build-tools:
     - hspec-discover >= 2.0
     dependencies:

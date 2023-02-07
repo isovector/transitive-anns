@@ -1,8 +1,3 @@
-{-# OPTIONS_GHC -fplugin=TransitiveAnns.Plugin #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
-
 module Ring where
 
 import TransitiveAnns.Types

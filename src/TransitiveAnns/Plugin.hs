@@ -78,7 +78,8 @@ findWanted c ct = do
 
 solve :: TransitiveAnnsData -> TcPluginSolver
 solve tad _ _ ws = do
-  pprTraceM "all wanted spans" $ ppr $ fmap (tcl_bndrs . ctl_env . ctLoc) ws
+  -- pprTraceM "all wanteds" $ ppr ws
+  -- pprTraceM "all wanted topdecs" $ ppr $ fmap location ws
   let over k f = traverse (k tad) $ mapMaybe (findWanted $ f tad) ws
   adds   <- over solveAddAnn    tad_add_ann
   knowns <- over solveKnownAnns tad_knownanns
@@ -93,11 +94,14 @@ solveKnownAnns tad known
       hsc <- unsafeTcPluginTcM getTopEnv
       anns <- unsafeTcPluginTcM $ tcg_anns <$> getGblEnv
       annenv' <- unsafeTcPluginTcM $ liftIO $ prepareAnnotations hsc Nothing
-      let annenv = extendAnnEnvList annenv' anns
+      added <- unsafeTcPluginTcM $ liftIO $ readIORef unsafeAnnsToAddRef
+      pprTraceM "added during known" $ ppr added
+      let annenv = extendAnnEnvList annenv' $ anns <> added
       decs <- unsafeTcPluginTcM $ tcg_binds <$> getGblEnv
       let dec = getVars $ fmap snd $ getDec decs loc
           z = foldMap (\v -> findAnns (deserializeWithData @TA.Annotation) annenv $ NamedTarget $ getName v) dec
-      -- pprTraceM "solving for" $ ppr (n, show z)
+
+      pprTraceM "solving for" $ ppr $ fmap (fmap getVars) $ getDec decs loc
       pure $ pure (EvExpr $ mkKnownAnnsDict tad z, known)
     | otherwise = pure []
 
@@ -109,10 +113,12 @@ solveAddAnn tad to_add
   = do
     decs <- unsafeTcPluginTcM $ tcg_binds <$> getGblEnv
     Just dec <- pure $ fmap fst $ getDec decs ctloc
+    let annx = Annotation (NamedTarget $ getName dec) (toSerialized serializeWithData ann)
+    pprTraceM "annx" $ ppr annx
     unsafeTcPluginTcM
       $ liftIO
       $ modifyIORef' unsafeAnnsToAddRef
-      $ (Annotation (NamedTarget $ getName dec) (toSerialized serializeWithData ann) :)
+      $ (annx :)
     pure $ pure (EvExpr $ mkAddAnnDict tad ann, to_add)
   | otherwise = pure []
 

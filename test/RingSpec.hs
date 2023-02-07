@@ -1,6 +1,3 @@
-{-# OPTIONS_GHC -fplugin=TransitiveAnns.Plugin #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
-
 module RingSpec where
 
 import qualified Data.Set as S
@@ -28,21 +25,22 @@ aa5a = annotated aa5
 aa6a = annotated aa6
 
 spec :: Spec
-spec =
-  describe "check that annotations are transitive intra-module" $ do
+spec = describe "check that annotations are transitive intra-module" $ do
+  it "attached via ANN" $ do
     let ann = S.fromList [Annotation Local "ring" "6"]
-    it "r1" $ r1a `shouldBe` ann
-    it "r2" $ r2a `shouldBe` ann
-    it "r3" $ r3a `shouldBe` ann
-    it "r4" $ r4a `shouldBe` ann
-    it "r5" $ r5a `shouldBe` ann
-    it "r6" $ r6a `shouldBe` ann
+    r1a `shouldBe` ann
+    r2a `shouldBe` ann
+    r3a `shouldBe` ann
+    r4a `shouldBe` ann
+    r5a `shouldBe` ann
+    r6a `shouldBe` ann
 
+  it "attached via AddAnnotation" $ do
     let aann = S.fromList [Annotation Local "cring" "6"]
-    it "aa1" $ aa1a `shouldBe` aann
-    it "aa2" $ aa2a `shouldBe` aann
-    it "aa3" $ aa3a `shouldBe` aann
-    it "aa4" $ aa4a `shouldBe` aann
-    it "aa5" $ aa5a `shouldBe` aann
-    it "aa6" $ aa6a `shouldBe` aann
+    aa1a `shouldBe` aann
+    aa2a `shouldBe` aann
+    aa3a `shouldBe` aann
+    aa4a `shouldBe` aann
+    aa5a `shouldBe` aann
+    aa6a `shouldBe` aann
 
