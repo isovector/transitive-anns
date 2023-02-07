@@ -4,6 +4,7 @@ import qualified Data.Set as S
 import Data.Set (Set)
 import TransitiveAnns.Types
 import Test.Hspec
+import MultipleVia
 
 
 {-# ANN t1 (Annotation Local "t1" "a") #-}
@@ -25,14 +26,25 @@ t123 = and [t1, t2, t3]
 obs :: Set Annotation
 obs = annotated t123
 
+vobs :: Set Annotation
+vobs = annotated vt123
+
 
 spec :: Spec
 spec = do
-  it "should collect annotations" $ do
+  it "should collect annotations locally" $ do
     obs `shouldBe` S.fromList
       [ Annotation Local "t1" "a"
       , Annotation Local "t2" "b"
       , Annotation Remote "t3" "c"
       , Annotation Remote "t3" "d"
+      ]
+
+  it "should collect annotations when importing" $ do
+    vobs `shouldBe` S.fromList
+      [ Annotation Local "vt1" "a"
+      , Annotation Local "vt2" "b"
+      , Annotation Remote "vt3" "c"
+      , Annotation Remote "vt3" "d"
       ]
 
