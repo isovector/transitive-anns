@@ -27,7 +27,7 @@ aa6a = annotated aa6
 spec :: Spec
 spec = describe "check that annotations are transitive intra-module" $ do
   it "attached via ANN" $ do
-    let ann = S.fromList [Annotation Local "ring" "6"]
+    let ann = S.fromList [Annotation Local "ring" "1" , Annotation Local "ring" "6"]
     r1a `shouldBe` ann
     r2a `shouldBe` ann
     r3a `shouldBe` ann
@@ -36,7 +36,7 @@ spec = describe "check that annotations are transitive intra-module" $ do
     r6a `shouldBe` ann
 
   it "attached via AddAnnotation" $ do
-    let aann = S.fromList [Annotation Local "cring" "6"]
+    let aann = S.fromList [Annotation Local "cring" "1", Annotation Local "cring" "6"]
     aa1a `shouldBe` aann
     aa2a `shouldBe` aann
     aa3a `shouldBe` aann

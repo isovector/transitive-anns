@@ -1,10 +1,14 @@
+{-# OPTIONS_GHC -ddump-cs-trace #-}
+
 module Ring where
 
 import TransitiveAnns.Types
 
--- Test ANN-otated rings
-r1, r2, r3, r4, r5, r6 :: Int
+{-# ANN r1 (Annotation Local "ring" "1") #-}
 r1 = r6
+
+-- Test ANN-otated rings
+r2, r3, r4, r5, r6 :: Int
 r2 = r1
 r3 = r2
 r4 = r3
@@ -14,8 +18,11 @@ r5 = r4
 r6 = r5
 
 -- Test AddAnnotation rings
-aa1, aa2, aa3, aa4, aa5 :: Int
+-- TODO(sandy): it silently fails to compile with this uncommented???
+aa1 :: {- AddAnnotation 'Local "cring" "1" x => -} Int
 aa1 = aa6
+
+aa2, aa3, aa4, aa5 :: Int
 aa2 = aa1
 aa3 = aa2
 aa4 = aa3
