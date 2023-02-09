@@ -5,9 +5,9 @@
 
 module TransitiveAnns.Plugin.Utils where
 
-import           Bag (bagToList)
-import           Class (classTyCon)
-import           Constraint
+import           GHC.Data.Bag (bagToList)
+import           GHC.Core.Class (classTyCon)
+import           GHC.Tc.Types.Constraint
 import           Control.Monad (guard)
 import           Data.Coerce (coerce)
 import           Data.Foldable (toList)
@@ -16,9 +16,9 @@ import           Data.Maybe (listToMaybe)
 import qualified Data.Set as S
 import           GHC (GhcTc, Class)
 import           GHC.Hs.Binds
-import           GhcPlugins hiding (TcPlugin, (<>), empty)
-import           TcPluginM (findImportedModule, lookupOrig, tcLookupClass, tcLookupTyCon)
-import           TcRnMonad
+import           GHC.Plugins hiding (TcPlugin, (<>), empty)
+import           GHC.Tc.Plugin (findImportedModule, lookupOrig, tcLookupClass, tcLookupTyCon, FindResult(..))
+import           GHC.Tc.Utils.Monad
 import qualified TransitiveAnns.Types as TA
 
 

@@ -14,18 +14,17 @@ import           Data.Maybe (fromMaybe)
 import           Data.Set (Set)
 import qualified Data.Set as S
 import           GHC.Hs
-import           GhcPlugins hiding (TcPlugin, (<>), empty)
+import           GHC.Plugins hiding (TcPlugin, (<>), empty)
 import qualified TransitiveAnns.Types as TA
 
 
 hsBinds :: HsBindLR GhcTc GhcTc -> Maybe (Var, Set Var)
-hsBinds (FunBind _ (L _ gl) mg _ _) = Just (gl, getVars mg)
+hsBinds (FunBind _ (L _ gl) mg _) = Just (gl, getVars mg)
 hsBinds PatBind{} = Nothing
 hsBinds VarBind{} = Nothing
 hsBinds (AbsBinds _ _ _ [(ABE _ nm _ _ _)] _ bag _) = Just (nm, getVars bag)
 hsBinds (AbsBinds _ _ _ _ _ _ _) = Nothing
 hsBinds PatSynBind{} = Nothing
-hsBinds XHsBindsLR{} = Nothing
 
 forBinds :: Ord b => (Expr b -> r) -> Bind b -> Map b r
 forBinds f (NonRec b ex) = M.singleton b $ f ex

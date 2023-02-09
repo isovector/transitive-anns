@@ -9,9 +9,9 @@
 
 module TransitiveAnns.Plugin where
 
-import           Bag (bagToList)
-import           Class (classTyCon)
-import           Constraint
+import           GHC.Data.Bag (bagToList)
+import           GHC.Core.Class (classTyCon)
+import           GHC.Tc.Types.Constraint
 import           Data.Foldable (fold)
 import           Data.IORef (newIORef, modifyIORef', writeIORef, readIORef)
 import           Data.Map (Map)
@@ -20,10 +20,10 @@ import           Data.Maybe (mapMaybe)
 import           Data.Set (Set)
 import qualified Data.Set as S
 import           GHC (Class, GhcTc, LHsBindsLR)
-import           GhcPlugins hiding (TcPlugin, (<>), empty)
+import           GHC.Plugins hiding (TcPlugin, (<>), empty)
 import           System.IO.Unsafe (unsafePerformIO)
-import           TcEvidence (EvTerm(EvExpr))
-import           TcRnMonad
+import           GHC.Tc.Types.Evidence (EvTerm(EvExpr))
+import           GHC.Tc.Utils.Monad
 import           TransitiveAnns.Plugin.Annotations
 import           TransitiveAnns.Plugin.Core
 import           TransitiveAnns.Plugin.Utils

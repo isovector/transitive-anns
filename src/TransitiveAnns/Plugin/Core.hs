@@ -1,8 +1,8 @@
 module TransitiveAnns.Plugin.Core where
 
-import           Class (classTyCon)
+import           GHC.Core.Class (classTyCon)
 import           Data.String (fromString)
-import           GhcPlugins hiding (TcPlugin, (<>), empty)
+import           GHC.Plugins hiding (TcPlugin, (<>), empty)
 import           TransitiveAnns.Plugin.Utils
 import qualified TransitiveAnns.Types as TA
 
