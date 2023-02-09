@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -ddump-cs-trace #-}
-
 module Ring where
 
 import TransitiveAnns.Types

@@ -1,10 +1,9 @@
 module ObserveSameModuleSpec where
 
 import qualified Data.Set as S
-import Data.Set (Set)
-import ObserveSameModule
-import Test.Hspec
-import TransitiveAnns.Types
+import           ObserveSameModule
+import           Test.Hspec
+import           TransitiveAnns.Types
 
 spec :: Spec
 spec = describe "observe annotationsVal in same module" $ do

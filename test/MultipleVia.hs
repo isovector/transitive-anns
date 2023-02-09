@@ -1,9 +1,6 @@
 module MultipleVia where
 
-import qualified Data.Set as S
-import Data.Set (Set)
 import TransitiveAnns.Types
-import Test.Hspec
 
 
 {-# ANN vt1 (Annotation Local "vt1" "a") #-}
