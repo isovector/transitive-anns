@@ -29,6 +29,15 @@ obs = annotated t123
 vobs :: Set Annotation
 vobs = annotated vt123
 
+a1 :: ( AddAnnotation 'Local "a1" "1" x
+      , AddAnnotation 'Remote "a1" "2" y)
+     => Bool
+a1 = True
+
+
+a1obs :: Set Annotation
+a1obs = annotated a1
+
 
 spec :: Spec
 spec = do
@@ -46,5 +55,11 @@ spec = do
       , Annotation Local "vt2" "b"
       , Annotation Remote "vt3" "c"
       , Annotation Remote "vt3" "d"
+      ]
+
+  it "should solve multiple AddAnns" $ do
+    a1obs `shouldBe` S.fromList
+      [ Annotation Local "a1" "1"
+      , Annotation Remote "a1" "2"
       ]
 
