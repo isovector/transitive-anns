@@ -4,28 +4,30 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module TransitiveAnns.Plugin where
 
-import qualified Data.Map as M
-import Data.Map (Map)
-import qualified Data.Set as S
-import Data.Set (Set)
+import           Bag (bagToList)
 import           Class (classTyCon)
 import           Constraint
 import           Data.Foldable (fold)
 import           Data.IORef (newIORef, modifyIORef', writeIORef, readIORef)
+import           Data.Map (Map)
+import qualified Data.Map as M
 import           Data.Maybe (mapMaybe)
-import           GHC (Class)
+import           Data.Set (Set)
+import qualified Data.Set as S
+import           GHC (Class, GhcTc, LHsBindsLR)
 import           GhcPlugins hiding (TcPlugin, (<>), empty)
 import           System.IO.Unsafe (unsafePerformIO)
 import           TcEvidence (EvTerm(EvExpr))
 import           TcRnMonad
 import           TransitiveAnns.Plugin.Annotations
-import           TransitiveAnns.Plugin.Utils
 import           TransitiveAnns.Plugin.Core
+import           TransitiveAnns.Plugin.Utils
 import qualified TransitiveAnns.Types as TA
-import GHC.Hs.Dump
 
 
 unsafeAnnsToAddRef :: IORef [Annotation]
@@ -38,7 +40,6 @@ plugin = defaultPlugin
   { installCoreToDos = const $ pure . (CoreDoPluginPass "TransitiveAnns" transann :)
   , tcPlugin = const $ Just $ TcPlugin
       { tcPluginInit = do
-          pprTraceM "starting plugin" $ ppr $ text "hello"
           unsafeTcPluginTcM $ liftIO $ writeIORef unsafeAnnsToAddRef []
           lookupTransitiveAnnsData
       , tcPluginSolve = solve
@@ -61,8 +62,23 @@ transann mg = do
       annotated = propagate contents $ fmap S.fromList anns
       new_anns = buildNewAnnotations (fmap S.toList annotated)
 
-  pprTraceM "new anns" $ vcat $ fmap (\(v, s) -> ppr v <+> text (show s)) $ filter (not . null . snd) $ M.assocs annotated
+  -- pprTraceM "new anns" $ vcat $ fmap (\(v, s) -> ppr v <+> text (show s)) $ filter (not . null . snd) $ M.assocs annotated
   pure $ mg { mg_anns = mganns <> new_anns <> added }
+
+pprTraceId :: Outputable a => String -> a -> a
+pprTraceId x a = pprTrace x (ppr a) a
+
+transitiveAnnEnv :: AnnEnv -> LHsBindsLR GhcTc GhcTc -> AnnEnv
+transitiveAnnEnv annenv binds =
+  let contents = M.fromList $ mapMaybe (hsBinds . unLoc) $ bagToList binds
+      all_ids = fold contents
+      anns = lookupAttachedAnns annenv all_ids
+      annotated = propagate contents $ fmap S.fromList anns
+      new_anns = buildNewAnnotations (fmap S.toList annotated)
+   in extendAnnEnvList annenv new_anns
+
+instance {-# OVERLAPPING #-} Outputable (Map Var (Set TA.Annotation)) where
+  ppr = vcat . fmap (\(v, s) -> ppr v <+> text (show s)) . M.assocs
 
 
 findWanted :: Class -> Ct -> Maybe Ct
@@ -95,15 +111,16 @@ solveKnownAnns tad known
       anns <- unsafeTcPluginTcM $ tcg_anns <$> getGblEnv
       annenv' <- unsafeTcPluginTcM $ liftIO $ prepareAnnotations hsc Nothing
       added <- unsafeTcPluginTcM $ liftIO $ readIORef unsafeAnnsToAddRef
-      pprTraceM "added during known" $ ppr added
-      let annenv = extendAnnEnvList annenv' $ anns <> added
-      pprTraceM "added during known" $ ppr added
+      -- pprTraceM "\n-----\n----" $ ppr loc
+      -- pprTraceM "added during known" $ ppr added
+      let annenv'' = extendAnnEnvList annenv' $ anns <> added
       decs <- unsafeTcPluginTcM $ tcg_binds <$> getGblEnv
       let Just (nm, dec) = getDec decs loc
           vars = S.insert nm $ getVars dec
+      let annenv = transitiveAnnEnv annenv'' decs
           z = foldMap (findAnns (deserializeWithData @TA.Annotation) annenv . NamedTarget . getName) vars
 
-      pprTraceM "solving for" $ ppr (ppr (fmap (fmap getVars) $ getDec decs loc, text $ show z))
+      -- pprTraceM "solving for" $ ppr (ppr (fmap (fmap getVars) $ getDec decs loc, text $ show z))
       pure $ pure (EvExpr $ mkKnownAnnsDict tad z, known)
     | otherwise = pure []
 
@@ -116,7 +133,7 @@ solveAddAnn tad to_add
     decs <- unsafeTcPluginTcM $ tcg_binds <$> getGblEnv
     Just dec <- pure $ fmap fst $ getDec decs ctloc
     let annx = Annotation (NamedTarget $ getName dec) (toSerialized serializeWithData ann)
-    pprTraceM "annx" $ ppr annx
+    -- pprTraceM "annx" $ ppr annx
     unsafeTcPluginTcM
       $ liftIO
       $ modifyIORef' unsafeAnnsToAddRef

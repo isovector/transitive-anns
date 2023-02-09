@@ -5,6 +5,7 @@ module Ring where
 import TransitiveAnns.Types
 
 {-# ANN r1 (Annotation Local "ring" "1") #-}
+r1 :: Int
 r1 = r6
 
 -- Test ANN-otated rings

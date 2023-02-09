@@ -26,6 +26,7 @@ dependencies:
 - syb
 - containers
 - hspec
+- monoidal-containers
 
 default-extensions:
   - AllowAmbiguousTypes

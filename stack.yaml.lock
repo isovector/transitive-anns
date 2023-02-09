@@ -3,7 +3,14 @@
 # For more information, please see the documentation at:
 #   https://docs.haskellstack.org/en/stable/lock_files
 
-packages: []
+packages:
+- completed:
+    hackage: monoidal-containers-0.6.3.0@sha256:838c67c75263ec580744fe7fefb0549e4eb7952704f1e18b31a0472ebf08bcf5,2241
+    pantry-tree:
+      size: 569
+      sha256: aa25f18348ae9e6d92f1a0439e7fcc6f286becd5b647c885771d24418630be0c
+  original:
+    hackage: monoidal-containers-0.6.3.0
 snapshots:
 - completed:
     size: 586296
