@@ -17,5 +17,3 @@ aref = 1
 observeAref :: Set Annotation
 observeAref = annotated aref
 
-
-

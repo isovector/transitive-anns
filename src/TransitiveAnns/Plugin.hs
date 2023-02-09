@@ -97,11 +97,13 @@ solveKnownAnns tad known
       added <- unsafeTcPluginTcM $ liftIO $ readIORef unsafeAnnsToAddRef
       pprTraceM "added during known" $ ppr added
       let annenv = extendAnnEnvList annenv' $ anns <> added
+      pprTraceM "added during known" $ ppr added
       decs <- unsafeTcPluginTcM $ tcg_binds <$> getGblEnv
-      let dec = getVars $ fmap snd $ getDec decs loc
-          z = foldMap (\v -> findAnns (deserializeWithData @TA.Annotation) annenv $ NamedTarget $ getName v) dec
+      let Just (nm, dec) = getDec decs loc
+          vars = S.insert nm $ getVars dec
+          z = foldMap (findAnns (deserializeWithData @TA.Annotation) annenv . NamedTarget . getName) vars
 
-      pprTraceM "solving for" $ ppr $ fmap (fmap getVars) $ getDec decs loc
+      pprTraceM "solving for" $ ppr (ppr (fmap (fmap getVars) $ getDec decs loc, text $ show z))
       pure $ pure (EvExpr $ mkKnownAnnsDict tad z, known)
     | otherwise = pure []
 
