@@ -93,10 +93,10 @@ findWanted c ct = do
 
 
 solve :: TransitiveAnnsData -> TcPluginSolver
-solve tad _ _ ws = do
-  -- pprTraceM "all wanteds" $ ppr ws
+solve tad _ ds ws = do
+  pprTraceM "all derived" $ ppr ds
   -- pprTraceM "all wanted topdecs" $ ppr $ fmap location ws
-  let over k f = traverse (k tad) $ mapMaybe (findWanted $ f tad) ws
+  let over k f = traverse (k tad) $ mapMaybe (findWanted $ f tad) $ ds <> ws
   adds   <- over solveAddAnn    tad_add_ann
   knowns <- over solveKnownAnns tad_knownanns
   let res = concat $ adds <> knowns
