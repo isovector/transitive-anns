@@ -65,9 +65,6 @@ transann mg = do
   -- pprTraceM "new anns" $ vcat $ fmap (\(v, s) -> ppr v <+> text (show s)) $ filter (not . null . snd) $ M.assocs annotated
   pure $ mg { mg_anns = mganns <> new_anns <> added }
 
-pprTraceId :: Outputable a => String -> a -> a
-pprTraceId x a = pprTrace x (ppr a) a
-
 transitiveAnnEnv :: AnnEnv -> LHsBindsLR GhcTc GhcTc -> AnnEnv
 transitiveAnnEnv annenv binds =
   let contents = M.fromList $ mapMaybe (hsBinds . unLoc) $ bagToList binds
@@ -93,9 +90,10 @@ findWanted c ct = do
 
 
 solve :: TransitiveAnnsData -> TcPluginSolver
-solve tad _ ds ws = do
-  pprTraceM "all derived" $ ppr ds
-  -- pprTraceM "all wanted topdecs" $ ppr $ fmap location ws
+solve tad _ ds ws' = do
+  let ws = ws' <> ds
+  pprTraceM "all w/ds" $ ppr ws
+  pprTraceM "all w/ds topdecs" $ ppr $ fmap location ws
   let over k f = traverse (k tad) $ mapMaybe (findWanted $ f tad) $ ds <> ws
   adds   <- over solveAddAnn    tad_add_ann
   knowns <- over solveKnownAnns tad_knownanns

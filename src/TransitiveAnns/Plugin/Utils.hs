@@ -45,9 +45,12 @@ lookupTransitiveAnnsData = do
         <*> tcLookupTyCon loc
 
 
+pprTraceId :: Outputable a => String -> a -> a
+pprTraceId x a = pprTrace x (ppr a) a
+
 location :: Ct -> Maybe Name
 location ct = do
-  h <- listToMaybe $ tcl_bndrs $ ctl_env $ ctLoc ct
+  h <- listToMaybe $ pprTraceId "location bndrs" $ tcl_bndrs $ ctl_env $ ctLoc ct
   Just $ case h of
     TcIdBndr var _ -> getName var
     TcIdBndr_ExpType na _ _ -> na
