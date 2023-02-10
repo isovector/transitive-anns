@@ -6,7 +6,6 @@
 module TyFamSpec where
 
 import qualified Data.Set as S
-import Data.Set (Set)
 import TransitiveAnns.Types
 import Test.Hspec
 import GHC.TypeLits
@@ -26,9 +25,8 @@ hello = test @'Brig @"hello"
 
 spec :: Spec
 spec = do
-  it "should work fine" $ do
-    hello `shouldBe` 5
-    -- annotated hello `shouldBe` S.fromList
-    --   [ Annotation Remote "brig" "hello"
-    --   ]
+  it "should canonicalize ty fam" $ do
+    annotated hello `shouldBe` S.fromList
+      [ Annotation Remote "brig" "hello"
+      ]
 

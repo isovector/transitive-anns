@@ -26,9 +26,8 @@ notifyUserDeleted str = do
 
 spec :: Spec
 spec = do
-  pure ()
-  -- it "ok" $ do
-  --   annotated notifyUserDeleted `shouldBe` S.fromList
-  --     [ Annotation Remote "brig" "on-user-deleted-connections"
-  --     ]
+  it "should correctly expand complicated function body" $ do
+    annotated notifyUserDeleted `shouldBe` S.fromList
+      [ Annotation Remote "brig" "on-user-deleted-connections"
+      ]
 
