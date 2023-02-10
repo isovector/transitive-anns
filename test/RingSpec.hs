@@ -38,7 +38,7 @@ spec = describe "check that annotations are transitive intra-module" $ do
   it "attached via AddAnnotation" $ do
     -- TODO(sandy): There is a bug here; it fails to solve if there is a mutual
     -- loop in the AddAnnotation case
-    let aann = S.fromList [Annotation Local "cring" "1", Annotation Local "cring" "6"]
+    let aann = S.fromList [{-Annotation Local "cring" "1", -}Annotation Local "cring" "6"]
     aa1a `shouldBe` aann
     aa2a `shouldBe` aann
     aa3a `shouldBe` aann

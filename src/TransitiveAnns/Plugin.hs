@@ -1,20 +1,22 @@
 {-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE ViewPatterns        #-}
+{-# OPTIONS_GHC -Wno-orphans     #-}
 
 module TransitiveAnns.Plugin where
 
+import Data.Data
 import           GHC.Data.Bag (bagToList)
 import           GHC.Core.Class (classTyCon)
 import           GHC.Tc.Types.Constraint
 import           Data.Foldable (fold)
 import           Data.IORef (newIORef, modifyIORef', writeIORef, readIORef)
 import           Data.Map (Map)
+import GHC.Tc.Types.Origin
 import qualified Data.Map as M
 import           Data.Maybe (mapMaybe)
 import           Data.Set (Set)
@@ -28,6 +30,7 @@ import           TransitiveAnns.Plugin.Annotations
 import           TransitiveAnns.Plugin.Core
 import           TransitiveAnns.Plugin.Utils
 import qualified TransitiveAnns.Types as TA
+import GHC.Hs.Dump
 
 
 unsafeAnnsToAddRef :: IORef [Annotation]
@@ -88,13 +91,24 @@ findWanted c ct = do
         False -> Nothing
     _ -> Nothing
 
-
+-- NOTE(sandy): GHC gives us a wanted, even when we have a given in scope, in
+-- case we'd like to just solve it. But we don't!
+--
+-- So instead, we would like to solve AddAnns only when there is no AddAnns as
+-- a given.
 solve :: TransitiveAnnsData -> TcPluginSolver
-solve tad _ ds ws' = do
+solve tad gs ds ws' = do
   let ws = ws' <> ds
-  pprTraceM "all w/ds" $ ppr ws
-  pprTraceM "all w/ds topdecs" $ ppr $ fmap location ws
-  let over k f = traverse (k tad) $ mapMaybe (findWanted $ f tad) $ ds <> ws
+  let over k f =
+        let fgs = mapMaybe (findWanted $ f tad) gs
+            fdws = mapMaybe (findWanted $ f tad) ws
+          in if null fgs && not (null fdws)
+                then do
+                  pprTraceM "ws" $ ppr fdws
+                  pprTraceM "spans ws" $ ppr $ fmap (ctLocSpan . ctLoc) fdws
+                  traverse (k tad) fdws
+                else pure []
+  -- pprTraceM "ws/gs" $ ppr (gs, ws)
   adds   <- over solveAddAnn    tad_add_ann
   knowns <- over solveKnownAnns tad_knownanns
   let res = concat $ adds <> knowns
@@ -103,7 +117,7 @@ solve tad _ ds ws' = do
 
 solveKnownAnns :: TransitiveAnnsData -> Ct -> TcPluginM [(EvTerm, Ct)]
 solveKnownAnns tad known
-  | Just loc <- location known
+  -- | Just loc <- location known
   = do
       hsc <- unsafeTcPluginTcM getTopEnv
       anns <- unsafeTcPluginTcM $ tcg_anns <$> getGblEnv
@@ -113,23 +127,24 @@ solveKnownAnns tad known
       -- pprTraceM "added during known" $ ppr added
       let annenv'' = extendAnnEnvList annenv' $ anns <> added
       decs <- unsafeTcPluginTcM $ tcg_binds <$> getGblEnv
-      let Just (nm, dec) = getDec decs loc
+      let Just (nm, dec) = getDec decs $ location known
           vars = S.insert nm $ getVars dec
       let annenv = transitiveAnnEnv annenv'' decs
           z = foldMap (findAnns (deserializeWithData @TA.Annotation) annenv . NamedTarget . getName) vars
 
-      -- pprTraceM "solving for" $ ppr (ppr (fmap (fmap getVars) $ getDec decs loc, text $ show z))
+      pprTraceM "known with " $ ppr (nm, text $ show z)
       pure $ pure (EvExpr $ mkKnownAnnsDict tad z, known)
-    | otherwise = pure []
+    -- | otherwise = pure []
 
 
 solveAddAnn :: TransitiveAnnsData -> Ct -> TcPluginM [(EvTerm, Ct)]
 solveAddAnn tad to_add
   | Just ann <- parsePromotedAnn tad $ ctev_pred $ cc_ev to_add
-  , Just ctloc <- location to_add
+  -- , Just ctloc <- location to_add
   = do
     decs <- unsafeTcPluginTcM $ tcg_binds <$> getGblEnv
-    Just dec <- pure $ fmap fst $ getDec decs ctloc
+    Just dec <- pure $ fmap fst $ getDec decs $ location to_add
+    pprTraceM "solved with" $ ppr (dec, text $ show ann)
     let annx = Annotation (NamedTarget $ getName dec) (toSerialized serializeWithData ann)
     -- pprTraceM "annx" $ ppr annx
     unsafeTcPluginTcM

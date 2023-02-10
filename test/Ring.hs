@@ -17,7 +17,7 @@ r5 = r4
 r6 = r5
 
 -- Test AddAnnotation rings
-aa1 :: AddAnnotation 'Local "cring" "1" x => Int
+aa1 :: Int
 aa1 = aa6
 
 aa2, aa3, aa4, aa5 :: Int

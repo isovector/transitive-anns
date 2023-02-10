@@ -32,6 +32,9 @@ default-extensions:
   - AllowAmbiguousTypes
   - DataKinds
   - FlexibleContexts
+  - ScopedTypeVariables
+  - TypeApplications
+  - KindSignatures
 
 ghc-options:
 - -Wall

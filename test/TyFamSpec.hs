@@ -2,7 +2,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeFamilies        #-}
-{-# OPTIONS_GHC -ddump-tc-trace  #-}
 
 module TyFamSpec where
 

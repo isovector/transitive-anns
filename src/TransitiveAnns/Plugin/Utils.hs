@@ -14,12 +14,13 @@ import           Data.Foldable (toList)
 import           Data.Generics (everything, mkQ)
 import           Data.Maybe (listToMaybe)
 import qualified Data.Set as S
-import           GHC (GhcTc, Class)
+import           GHC (GhcTc, Class, SrcSpanAnn'(..))
 import           GHC.Hs.Binds
 import           GHC.Plugins hiding (TcPlugin, (<>), empty)
 import           GHC.Tc.Plugin (findImportedModule, lookupOrig, tcLookupClass, tcLookupTyCon, FindResult(..))
 import           GHC.Tc.Utils.Monad
 import qualified TransitiveAnns.Types as TA
+import GHC.Hs.Dump
 
 
 data TransitiveAnnsData = TransitiveAnnsData
@@ -48,13 +49,10 @@ lookupTransitiveAnnsData = do
 pprTraceId :: Outputable a => String -> a -> a
 pprTraceId x a = pprTrace x (ppr a) a
 
-location :: Ct -> Maybe Name
-location ct = do
-  h <- listToMaybe $ pprTraceId "location bndrs" $ tcl_bndrs $ ctl_env $ ctLoc ct
-  Just $ case h of
-    TcIdBndr var _ -> getName var
-    TcIdBndr_ExpType na _ _ -> na
-    TcTvBndr na _ -> na
+location :: Ct -> RealSrcSpan
+location = ctLocSpan . ctLoc
+
+
 
 
 parsePromotedAnn :: TransitiveAnnsData -> PredType -> Maybe TA.Annotation
@@ -72,17 +70,17 @@ parsePromotedAnn tad ty = do
   pure $ TA.Annotation loc api method
 
 
-getDec :: LHsBinds GhcTc -> Name -> Maybe (Id, HsBindLR GhcTc GhcTc)
-getDec bs n = listToMaybe $ do
+getDec :: LHsBinds GhcTc -> RealSrcSpan -> Maybe (Id, HsBindLR GhcTc GhcTc)
+getDec bs ss = listToMaybe $ do
   L _ b <- bagToList bs
   everything (<>) (mkQ [] $ \case
-    AbsBinds _ _ _ [(ABE _ poly mono _ _)] _ (bagToList -> [L _ (b@FunBind{})]) _
-      | getName poly == n || getName mono == n
+    L (SrcSpanAnn _ (RealSrcSpan ss' _)) (AbsBinds _ _ _ [(ABE _ poly mono _ _)] _ (bagToList -> [L _ (b@FunBind{})]) _)
+      | containsSpan ss' ss
       -> pure (poly, b)
-    -- FunBind {fun_id = L _ n'}
-    --   | getOccName n == getOccName n' -> [(n', b)]
-    --   | otherwise -> []
-    (_ :: HsBindLR GhcTc GhcTc) -> []
+    L (SrcSpanAnn _ (RealSrcSpan ss' _)) (FunBind {fun_id = L _ n'})
+      | containsSpan ss' ss
+       -> pure (n', b)
+    (L (SrcSpanAnn _ ss') x :: LHsBindLR GhcTc GhcTc) -> [] -- pprTrace "not looking at" (ppr (ss', showAstData BlankSrcSpan BlankEpAnnotations x)) []
     ) b
 
 newtype A' = A' Annotation

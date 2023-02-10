@@ -38,6 +38,9 @@ library
       AllowAmbiguousTypes
       DataKinds
       FlexibleContexts
+      ScopedTypeVariables
+      TypeApplications
+      KindSignatures
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints
   build-depends:
       base >=4.7 && <5
@@ -53,6 +56,7 @@ test-suite test
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
+      LetBindingSpec
       MultipleSpec
       MultipleVia
       ObserveOtherModule
@@ -70,6 +74,9 @@ test-suite test
       AllowAmbiguousTypes
       DataKinds
       FlexibleContexts
+      ScopedTypeVariables
+      TypeApplications
+      KindSignatures
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N -fplugin=TransitiveAnns.Plugin -fno-warn-redundant-constraints -dcore-lint
   build-tool-depends:
       hspec-discover:hspec-discover >=2.0
