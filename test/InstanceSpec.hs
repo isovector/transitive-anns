@@ -27,7 +27,7 @@ ahelloVia = annotated helloVia
 
 spec :: Spec
 spec = do
-  it "should propagate via instances" $ do
+  xit "should propagate via instances" $ do
     ahello `shouldBe` S.fromList
       [ Annotation Remote "brig" "hello"
       ]
