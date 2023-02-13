@@ -5,27 +5,30 @@
 
 module TransitiveAnns.Plugin.Utils where
 
-import           GHC.Data.Bag (bagToList)
-import           GHC.Core.Class (classTyCon)
-import           GHC.Tc.Types.Constraint
 import           Control.Monad (guard)
 import           Data.Coerce (coerce)
 import           Data.Foldable (toList)
 import           Data.Generics (everything, mkQ)
 import           Data.Maybe (listToMaybe)
 import qualified Data.Set as S
+import           Data.String (fromString)
 import           GHC (GhcTc, Class, SrcSpanAnn'(..))
+import           GHC.Core.Class (classTyCon)
+import           GHC.Data.Bag (bagToList)
 import           GHC.Hs.Binds
+import           GHC.Hs.Dump
 import           GHC.Plugins hiding (TcPlugin, (<>), empty)
 import           GHC.Tc.Plugin (findImportedModule, lookupOrig, tcLookupClass, tcLookupTyCon, FindResult(..))
+import           GHC.Tc.Types.Constraint
 import           GHC.Tc.Utils.Monad
 import qualified TransitiveAnns.Types as TA
-import GHC.Hs.Dump
 
 
 data TransitiveAnnsData = TransitiveAnnsData
   { tad_knownanns :: Class
   , tad_add_ann :: Class
+  , tad_to_has_ann :: Class
+  , tad_has_ann :: Class
   , tad_ann_tc :: TyCon
   , tad_loc_tc :: TyCon
   }
@@ -36,12 +39,16 @@ lookupTransitiveAnnsData = do
     Found _ tys_mod  <- findImportedModule (mkModuleName "TransitiveAnns.Types") Nothing
     known  <- lookupOrig tys_mod $ mkTcOcc "KnownAnnotations"
     add_ann  <- lookupOrig tys_mod $ mkTcOcc "AddAnnotation"
+    to_has_ann  <- lookupOrig tys_mod $ mkTcOcc "ToHasAnnotations"
+    has_ann  <- lookupOrig tys_mod $ mkTcOcc "HasAnnotation"
     ann  <- lookupOrig tys_mod $ mkTcOcc "Annotation"
     loc  <- lookupOrig tys_mod $ mkTcOcc "Location"
 
     TransitiveAnnsData
         <$> tcLookupClass known
         <*> tcLookupClass add_ann
+        <*> tcLookupClass to_has_ann
+        <*> tcLookupClass has_ann
         <*> tcLookupTyCon ann
         <*> tcLookupTyCon loc
 
@@ -68,6 +75,17 @@ parsePromotedAnn tad ty = do
   api <- fmap unpackFS $ isStrLitTy api_ty
   method <- fmap unpackFS $ isStrLitTy method_ty
   pure $ TA.Annotation loc api method
+
+locToDataCon :: TransitiveAnnsData -> TA.Location -> DataCon
+locToDataCon tad loc = (!! fromEnum loc) $ tyConDataCons $ tad_loc_tc tad
+
+toHasAnn :: TransitiveAnnsData -> TA.Annotation -> PredType
+toHasAnn tad (TA.Annotation loc api method) =
+  mkTyConApp (classTyCon (tad_has_ann tad))
+    [ mkTyConTy $ promoteDataCon $ locToDataCon tad loc
+    , mkStrLitTy $ fromString api
+    , mkStrLitTy $ fromString method
+    ]
 
 
 getDec :: LHsBinds GhcTc -> RealSrcSpan -> Maybe (Id, HsBindLR GhcTc GhcTc)

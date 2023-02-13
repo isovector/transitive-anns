@@ -25,6 +25,11 @@ data Annotation = Annotation
 
 class AddAnnotation (loc :: Location) (api :: Symbol) (method :: Symbol) a
 
+class HasAnnotation (loc :: Location) (api :: Symbol) (method :: Symbol)
+
+class ToHasAnnotations a
+
+
 class KnownAnnotations a where
   rawAnnotationsVal :: [Annotation]
 

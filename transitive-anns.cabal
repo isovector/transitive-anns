@@ -68,6 +68,7 @@ test-suite test
       ObserveSameModuleSpec
       Ring
       RingSpec
+      ToHasAnnsSpec
       TyFamSpec
       Paths_transitive_anns
   hs-source-dirs:

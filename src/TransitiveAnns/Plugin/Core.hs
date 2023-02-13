@@ -40,3 +40,8 @@ mkKnownAnnsDict tad z =
 buildCore :: TransitiveAnnsData -> [TA.Annotation] -> Expr Var
 buildCore tad anns = mkListExpr (mkTyConTy $ tad_ann_tc tad) $ fmap (buildAnn tad) anns
 
+
+mkToHasAnnsDict :: TransitiveAnnsData ->  CoreExpr
+mkToHasAnnsDict tad =
+  mkConApp (head $ tyConDataCons $ classTyCon $ tad_to_has_ann tad)
+    [Type (anyTypeOfKind liftedTypeKind)]
