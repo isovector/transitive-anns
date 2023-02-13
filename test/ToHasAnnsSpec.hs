@@ -3,9 +3,9 @@
 {-# LANGUAGE TypeOperators          #-}
 {-# LANGUAGE UndecidableInstances   #-}
 
--- UNCOMMENT THIS LINE TO RUN THE TEST
+-- COMMENT THIS LINE TO RUN THE TEST
 
--- {-# OPTIONS_GHC -fdefer-type-errors #-}
+{-# OPTIONS_GHC -fdefer-type-errors #-}
 
 module ToHasAnnsSpec where
 
