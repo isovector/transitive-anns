@@ -20,13 +20,11 @@ import GHC.TypeLits
 test :: Bool -> Bool
 test = id
 
-test2 :: ToHasAnnotations x => Bool
-test2 = test True
-
-instance TypeError ('Text "Found " ':<>: 'ShowType loc ':<>: 'Text api ':<>: 'Text method) => HasAnnotation loc api method
+expose :: ToHasAnnotations x => a -> a
+expose = id
 
 spec :: Spec
 spec = describe "check that annotations are transitive intra-module" $ do
   it "attached via ANN" $ do
-    test2 `shouldBe` True
+    expose (test True) `shouldBe` True
 

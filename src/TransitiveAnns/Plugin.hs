@@ -21,7 +21,7 @@ import qualified Data.Map as M
 import           Data.Maybe (mapMaybe)
 import           Data.Set (Set)
 import qualified Data.Set as S
-import           GHC (Class, GhcTc, LHsBindsLR)
+import           GHC (Class, GhcTc, LHsBindsLR, SrcSpanAnn' (..), HsExpr (..))
 import           GHC.Plugins hiding (TcPlugin, (<>), empty)
 import           System.IO.Unsafe (unsafePerformIO)
 import           GHC.Tc.Types.Evidence (EvTerm(EvExpr))
@@ -33,6 +33,9 @@ import qualified TransitiveAnns.Types as TA
 import GHC.Hs.Dump
 import GHC.Tc.Plugin (newWanted)
 import Data.Traversable (for)
+import GHC.Hs (HsExpr, LHsExpr)
+import Data.Monoid (getFirst, getLast)
+import Data.Generics (everything, mkQ)
 
 
 unsafeAnnsToAddRef :: IORef [Annotation]
@@ -120,8 +123,9 @@ solve tad gs ds ws' = do
 
 solveToHasAnns :: TransitiveAnnsData -> Ct -> TcPluginM ((EvTerm, Ct), [Ct])
 solveToHasAnns tad ct = do
-  pprTraceM "hello?" $ ppr ct
-  anns <- unsafeTcPluginTcM $ getAttachedAnnotations ct
+  decs <- unsafeTcPluginTcM $ tcg_binds <$> getGblEnv
+  let  !expr = getCallingExpr (location ct) decs
+  anns <- unsafeTcPluginTcM $ getReferencedAnnotations expr
   new_cts <- for anns $ fmap mkNonCanonical . newWanted (ctLoc ct) . toHasAnn tad
   pprTraceM "new_cts" $ ppr new_cts
   pure
@@ -129,6 +133,17 @@ solveToHasAnns tad ct = do
     , new_cts
     )
 
+
+getCallingExpr :: Data a => RealSrcSpan -> a -> Maybe (LHsExpr GhcTc)
+getCallingExpr ss a = getLast $ everything (<>) (mkQ mempty
+  $ \case
+      x@(L _ (HsApp _ (L (SrcSpanAnn _ (RealSrcSpan ss' _)) _) b))
+        | ss' == ss -> pure b
+      x@(L _ (OpApp _ (L (SrcSpanAnn _ (RealSrcSpan ss' _)) _) _ b))
+        | ss' == ss -> pure b
+      (_ :: LHsExpr GhcTc) -> mempty
+
+  ) a
 
 
 
@@ -145,6 +160,19 @@ getAttachedAnnotations known = do
   let annenv = transitiveAnnEnv annenv'' decs
   pure $ foldMap (findAnns (deserializeWithData @TA.Annotation) annenv . NamedTarget . getName) vars
 
+
+-- TODO(sandy): dedup me wrt getAttachedAnnotations
+getReferencedAnnotations :: Data a => a -> TcM [TA.Annotation]
+getReferencedAnnotations a = do
+  hsc <- getTopEnv
+  anns <- tcg_anns <$> getGblEnv
+  annenv' <- liftIO $ prepareAnnotations hsc Nothing
+  added <- liftIO $ readIORef unsafeAnnsToAddRef
+  let annenv'' = extendAnnEnvList annenv' $ anns <> added
+  decs <- tcg_binds <$> getGblEnv
+  let vars = getVars a
+  let annenv = transitiveAnnEnv annenv'' decs
+  pure $ foldMap (findAnns (deserializeWithData @TA.Annotation) annenv . NamedTarget . getName) vars
 
 solveKnownAnns :: TransitiveAnnsData -> Ct -> TcPluginM [(EvTerm, Ct)]
 solveKnownAnns tad known = do
