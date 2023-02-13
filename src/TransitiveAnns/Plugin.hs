@@ -126,6 +126,7 @@ solveToHasAnns tad ct = do
   decs <- unsafeTcPluginTcM $ tcg_binds <$> getGblEnv
   let  !expr = getCallingExpr (location ct) decs
   anns <- unsafeTcPluginTcM $ getReferencedAnnotations expr
+  pprTraceM "found_anns" $ text $ show anns
   new_cts <- for anns $ fmap mkNonCanonical . newWanted (ctLoc ct) . toHasAnn tad
   pprTraceM "new_cts" $ ppr new_cts
   pure
@@ -138,11 +139,11 @@ getCallingExpr :: Data a => RealSrcSpan -> a -> Maybe (LHsExpr GhcTc)
 getCallingExpr ss a = getLast $ everything (<>) (mkQ mempty
   $ \case
       x@(L _ (HsApp _ (L (SrcSpanAnn _ (RealSrcSpan ss' _)) _) b))
-        | ss' == ss -> pprTrace "contains" (ppr x) $ pure b
+        | ss' == ss -> pprTrace "contains!" (ppr x) $ pure b
       x@(L _ (OpApp _ (L (SrcSpanAnn _ (RealSrcSpan ss' _)) _) _ b))
-        | ss' == ss -> pprTrace "contains" (ppr x) $ pure b
+        | ss' == ss -> pprTrace "contains!" (ppr x) $ pure b
       x@(L (SrcSpanAnn _ (RealSrcSpan ss' _)) _)
-        | containsSpan ss' ss -> pprTrace "contains" (ppr x) mempty
+        | containsSpan ss' ss -> pprTrace "contains..." (ppr x) mempty
       (_ :: LHsExpr GhcTc) -> mempty
 
   ) a
@@ -173,6 +174,7 @@ getReferencedAnnotations a = do
   let annenv'' = extendAnnEnvList annenv' $ anns <> added
   decs <- tcg_binds <$> getGblEnv
   let vars = getVars a
+  pprTraceM "contains vars" $ ppr vars
   let annenv = transitiveAnnEnv annenv'' decs
   pure $ foldMap (findAnns (deserializeWithData @TA.Annotation) annenv . NamedTarget . getName) vars
 
