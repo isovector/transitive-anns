@@ -142,8 +142,10 @@ getCallingExpr ss a = getLast $ everything (<>) (mkQ mempty
         | ss' == ss -> pprTrace "contains!" (ppr x) $ pure b
       x@(L _ (OpApp _ (L (SrcSpanAnn _ (RealSrcSpan ss' _)) _) _ b))
         | ss' == ss -> pprTrace "contains!" (ppr x) $ pure b
+      x@(L _ (HsApp _ (L (SrcSpanAnn _ (RealSrcSpan ss' _)) _) b))
+        | ss' == ss -> pprTrace "contains!" (ppr x) $ pure b
       x@(L (SrcSpanAnn _ (RealSrcSpan ss' _)) _)
-        | containsSpan ss' ss -> pprTrace "contains..." (ppr ((ss, ss'), x, showAstData BlankSrcSpan BlankEpAnnotations x)) mempty
+        | containsSpan ss' ss -> pprTrace "contains..." (ppr ((ss, ss'), x, showAstData NoBlankSrcSpan BlankEpAnnotations x)) mempty
       (_ :: LHsExpr GhcTc) -> mempty
 
   ) a
