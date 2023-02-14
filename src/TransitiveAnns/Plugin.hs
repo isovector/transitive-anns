@@ -26,12 +26,12 @@ import           GHC.Plugins hiding (TcPlugin, (<>), empty)
 import           System.IO.Unsafe (unsafePerformIO)
 import           GHC.Tc.Types.Evidence (EvTerm(EvExpr))
 import           GHC.Tc.Utils.Monad
+import           GHC.Tc.Utils.TcMType (newWanted)
 import           TransitiveAnns.Plugin.Annotations
 import           TransitiveAnns.Plugin.Core
 import           TransitiveAnns.Plugin.Utils
 import qualified TransitiveAnns.Types as TA
 import GHC.Hs.Dump
-import GHC.Tc.Plugin (newWanted)
 import Data.Traversable (for)
 import GHC.Hs (HsExpr, LHsExpr)
 import Data.Monoid (getFirst, getLast)
@@ -127,7 +127,12 @@ solveToHasAnns tad ct = do
   let  !expr = getCallingExpr (location ct) decs
   anns <- unsafeTcPluginTcM $ getReferencedAnnotations expr
   pprTraceM "found_anns" $ text $ show anns
-  new_cts <- for anns $ fmap mkNonCanonical . newWanted (ctLoc ct) . toHasAnn tad
+  new_cts <- unsafeTcPluginTcM
+            -- newWanted has a bug where it destroys source information. See
+            -- GHC #20895 for why this workaround is necessary
+          $ setCtLocM (ctLoc ct)
+          $ for anns
+          $ fmap mkNonCanonical . newWanted (ctLocOrigin $ ctLoc ct) Nothing . toHasAnn tad
   pprTraceM "new_cts" $ ppr new_cts
   pure
     ( (, ct) $ EvExpr $ mkToHasAnnsDict tad
