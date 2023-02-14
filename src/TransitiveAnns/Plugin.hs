@@ -138,18 +138,36 @@ solveToHasAnns tad ct = do
 getCallingExpr :: Data a => RealSrcSpan -> a -> Maybe (LHsExpr GhcTc)
 getCallingExpr ss a = getLast $ everything (<>) (mkQ mempty
   $ \case
-      x@(L _ (HsApp _ (L (SrcSpanAnn _ (RealSrcSpan ss' _)) _) b))
+      x@((HsApp _ (L (SrcSpanAnn _ (RealSrcSpan ss' _)) _) b))
         | ss' == ss -> pprTrace "contains!" (ppr x) $ pure b
-      x@(L _ (OpApp _ (L (SrcSpanAnn _ (RealSrcSpan ss' _)) _) _ b))
+      x@((OpApp _ (L (SrcSpanAnn _ (RealSrcSpan ss' _)) _) _ b))
         | ss' == ss -> pprTrace "contains!" (ppr x) $ pure b
-      x@(L _ (HsApp _ (L (SrcSpanAnn _ (RealSrcSpan ss' _)) _) b))
-        | ss' == ss -> pprTrace "contains!" (ppr x) $ pure b
-      x@(L (SrcSpanAnn _ (RealSrcSpan ss' _)) _)
-        | containsSpan ss' ss -> pprTrace "contains..." (ppr ((ss, ss'), x, showAstData NoBlankSrcSpan NoBlankEpAnnotations x)) mempty
-      (_ :: LHsExpr GhcTc) -> mempty
+      -- x@(L (SrcSpanAnn _ (RealSrcSpan ss' _)) _)
+      --   | containsSpan ss' ss -> pprTrace "contains..." (ppr ((ss, ss'), x, showAstData NoBlankSrcSpan NoBlankEpAnnotations x)) mempty
+      (_ :: HsExpr GhcTc) -> mempty
 
   ) a
 
+
+-- contains...
+--   ((src/Brig/API/Public.hs:209:48-64,
+--     src/Brig/API/Public.hs:209:48-84),
+--    exposeAnnotations getUserUnqualifiedH,
+
+--    (L
+--     (SrcSpanAnn _ { src/Brig/API/Public.hs:209:48-84 })
+--     (XExpr
+--      (WrapExpr
+--       (HsWrap
+--        _
+--        (HsApp
+--         _
+--         (L
+--          (SrcSpanAnn _ { src/Brig/API/Public.hs:209:48-64 })
+--          _)
+--         (L
+--          (SrcSpanAnn _ { src/Brig/API/Public.hs:209:66-84 })
+--          _)))))))
 
 
 getAttachedAnnotations :: Ct -> TcM [TA.Annotation]
