@@ -6,7 +6,6 @@ module LetBindingSpec where
 
 import GHC.TypeLits
 import qualified Data.Set as S
-import Data.Set (Set)
 import TransitiveAnns.Types
 import Test.Hspec
 

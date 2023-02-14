@@ -1,7 +1,6 @@
 module ObserveOtherModuleSpec where
 
 import qualified Data.Set as S
-import Data.Set (Set)
 import ObserveOtherModule
 import Test.Hspec
 import TransitiveAnns.Types

@@ -9,11 +9,8 @@
 
 module ToHasAnnsSpec where
 
-import qualified Data.Set as S
-import Data.Set (Set)
 import TransitiveAnns.Types
 import Test.Hspec
-import GHC.TypeLits
 
 {-# ANN test (Annotation Local "hello" "goodbye") #-}
 {-# ANN test (Annotation Remote "soup" "gumbo") #-}

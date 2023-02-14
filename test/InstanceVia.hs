@@ -1,10 +1,9 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 module InstanceVia where
 
-import qualified Data.Set as S
 import TransitiveAnns.Types
-import Test.Hspec
 import GHC.TypeLits
 
 
